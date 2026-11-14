@@ -1,5 +1,7 @@
 (() => {
  'use strict';
+ // older browsers (school Chromebooks, older iPhones) don't have AbortSignal.timeout: add it so sign-in and saving work there too
+ if(typeof AbortSignal!=='undefined'&&typeof AbortSignal.timeout!=='function')AbortSignal.timeout=ms=>{const c=new AbortController();setTimeout(()=>c.abort(new DOMException('The request timed out.','TimeoutError')),ms);return c.signal;};
  const revisions=new Map(),profiles=new Map(),listeners=new Set();
  function account(){return window.npAccounts?.user();}
  async function call(action,data={},retry=true){

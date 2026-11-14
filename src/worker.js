@@ -13,7 +13,7 @@ export { DomainTransfer } from "./domain-migration.js";
 
 // sites allowed to use the rooms (your copies of the game); anything else is refused
 // (crazygames.com: the CrazyGames version of the game, which plays online through this server)
-const ORIGIN_OK = /^https:\/\/([a-z0-9-]+\.)*bibleway\.workers\.dev$|^https:\/\/([a-z0-9-]+\.)*crazygames\.(com|io|dev)$|^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const ORIGIN_OK = /^https:\/\/(www\.)?goalsrush\.site$|^https:\/\/([a-z0-9-]+\.)*bibleway\.workers\.dev$|^https:\/\/([a-z0-9-]+\.)*crazygames\.(com|io|dev)$|^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
 export default {
   async fetch(req, env) {
@@ -52,7 +52,7 @@ export default {
       response.headers.delete("Content-Length");
       response.headers.set("Cache-Control", "no-store");
       response.headers.set("X-Nitropitch-Consent", "v1");
-      response.headers.set("X-Nitropitch-Build", "2026111056");
+      response.headers.set("X-Nitropitch-Build", "2026111057");
       return response;
     }
     return env.ASSETS.fetch(req);

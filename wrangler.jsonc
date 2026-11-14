@@ -3,7 +3,7 @@
 {
   "name": "nitropitch",
   "workers_dev": true,
-  "routes": [{ "pattern": "nitropitch.app", "custom_domain": true }],
+  "routes": [{ "pattern": "nitropitch.app", "custom_domain": true }, { "pattern": "goalsrush.site", "custom_domain": true }],
   "main": "src/worker.js",
   "compatibility_date": "2025-09-01",
   // Route through the Worker for legacy-domain migration and advertising gating.
