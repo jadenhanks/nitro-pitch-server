@@ -99,7 +99,7 @@ const patches = [
   },
   {
     "before": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026111001;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n",
-    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026111058;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
+    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026111059;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
   },
   {
     "before": "// RLUtilities-style bounce: restitution 0.6 on the normal part, friction that trades sliding for spin\nfunction ballContact(b, n, r) {\n  if (n.y > 0.7 && b === ball && b.p.y < r + 1) ball.floorT = nowS();     // touched the floor (the 0:00 rule)\n  const vn = b.v.dot(n);\n  if (vn >= 0) return;\n",
@@ -171,7 +171,7 @@ const patches = [
   },
   {
     "before": "const PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n  \"ADMIN items (car, decal, wheels, topper, antenna, title, banner) only show for the admin and players he gifted them to. Copies anyone gave themselves are gone\",\n] };\n",
-    "after": "const PATCH_NOTES = {\n  \"v\": \"5.60\",\n  \"title\": \"Update 5.60: Works on more devices\",\n  \"notes\": [\n    \"The game now works on older iPhones, iPads and school Chromebooks (fixed several errors there).\",\n    \"The game no longer depends on an outside site to load its 3D graphics, so it starts on networks that blocked it.\",\n    \"Online matches wait a little longer for the result to be confirmed, so fewer matches go unsaved.\",\n    \"Fixed signing in and creating accounts on older browsers.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
+    "after": "const PATCH_NOTES = {\n  \"v\": \"5.61\",\n  \"title\": \"Update 5.61: Works on more devices\",\n  \"notes\": [\n    \"Add Nitro Pitch to your home screen and it opens full screen like an app, with no browser bar.\",\n    \"The game now works on older iPhones, iPads and school Chromebooks (fixed several errors there).\",\n    \"The game no longer depends on an outside site to load its 3D graphics, so it starts on networks that blocked it.\",\n    \"Online matches wait a little longer for the result to be confirmed, so fewer matches go unsaved.\",\n    \"Fixed signing in and creating accounts on older browsers.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
   },
   {
     "before": "<title>Nitro Pitch</title>",
