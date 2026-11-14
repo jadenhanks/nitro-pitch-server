@@ -26,6 +26,10 @@ import sideswipeMenu from "./sideswipe-menu.txt";
 // whenever replacing public/index.html with a new game build.
 const patches = [
   {
+    "before": "<script src=\"https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js\"></script>",
+    "after": "<script src=\"/vendor/three-0.158.0.min.js\"></script>\n<script>if (typeof THREE === \"undefined\") document.write('<script src=\"https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js\"><\\/script>');</script>"
+  },
+  {
     "before": "  partyFollowInfo = /^np-[pf]-/.test(room) && isPartyLeader() ? {",
     "after": "  partyFollowInfo = /^np-[pf]-/.test(room) && (isPartyLeader() || partyState().size > 1) ? {"
   },
@@ -95,7 +99,7 @@ const patches = [
   },
   {
     "before": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026111001;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n",
-    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026111057;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
+    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026111058;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
   },
   {
     "before": "// RLUtilities-style bounce: restitution 0.6 on the normal part, friction that trades sliding for spin\nfunction ballContact(b, n, r) {\n  if (n.y > 0.7 && b === ball && b.p.y < r + 1) ball.floorT = nowS();     // touched the floor (the 0:00 rule)\n  const vn = b.v.dot(n);\n  if (vn >= 0) return;\n",
@@ -167,7 +171,7 @@ const patches = [
   },
   {
     "before": "const PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n  \"ADMIN items (car, decal, wheels, topper, antenna, title, banner) only show for the admin and players he gifted them to. Copies anyone gave themselves are gone\",\n] };\n",
-    "after": "const PATCH_NOTES = {\n  \"v\": \"5.59\",\n  \"title\": \"Update 5.59: Sign-in fixed\",\n  \"notes\": [\n    \"Fixed signing in and creating accounts on older browsers and school Chromebooks (the AbortSignal.timeout error).\",\n    \"Nitro Pitch is now also at goalsrush.site, with the same accounts and the same matches.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
+    "after": "const PATCH_NOTES = {\n  \"v\": \"5.60\",\n  \"title\": \"Update 5.60: Works on more devices\",\n  \"notes\": [\n    \"The game now works on older iPhones, iPads and school Chromebooks (fixed several errors there).\",\n    \"The game no longer depends on an outside site to load its 3D graphics, so it starts on networks that blocked it.\",\n    \"Online matches wait a little longer for the result to be confirmed, so fewer matches go unsaved.\",\n    \"Fixed signing in and creating accounts on older browsers.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
   },
   {
     "before": "<title>Nitro Pitch</title>",

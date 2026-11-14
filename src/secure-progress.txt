@@ -50,7 +50,7 @@ const NPSecure = (() => {
     lobbyPresence();return;
    }catch(e){
     error=e;if(e.status===422)break;
-    const waiting=/Waiting/.test(e.message||'');
+    const waiting=/Waiting|not ready/.test(e.message||'');
     if(waiting?Date.now()-started>100000:attempt>=7)break;
     if(waiting&&match.mid===mid&&screen==='post')$('postXp').textContent='Waiting for the other team to confirm the result…';
     await new Promise(resolve=>setTimeout(resolve,waiting?3000:1200));

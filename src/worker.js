@@ -44,7 +44,7 @@ export default {
         })
         .on("head", {
           element(element) {
-            element.prepend('<script src="/error-report.js"></script><script src="/cookie-consent.js" data-ad-client="ca-pub-3345250551146308"></script>', { html: true });
+            element.prepend('<script src="/polyfills.js"></script><script src="/error-report.js"></script><script src="/cookie-consent.js" data-ad-client="ca-pub-3345250551146308"></script>', { html: true });
           }
         }).transform(gameAsset);
       const response = new Response(transformed.body, transformed);
@@ -52,7 +52,7 @@ export default {
       response.headers.delete("Content-Length");
       response.headers.set("Cache-Control", "no-store");
       response.headers.set("X-Nitropitch-Consent", "v1");
-      response.headers.set("X-Nitropitch-Build", "2026111057");
+      response.headers.set("X-Nitropitch-Build", "2026111058");
       return response;
     }
     return env.ASSETS.fetch(req);
