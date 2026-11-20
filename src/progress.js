@@ -100,17 +100,38 @@ export class Progress extends DurableObject{
   // and returns a bookmark that undoes the restore.
   if(b.action==='admin-accounts'){
    if(uid!==ADMIN_UID)throw new ApiError('Only the admin can do that',403);
-   const hours={};let total=0,oldest=null,after;
+   const hours={},recentIds=[];let total=0,oldest=null,after;
    do{const page=await this.ctx.storage.list({prefix:'p:',limit:500,...(after?{startAfter:after}:{})});
     for(const[key,q]of page){after=key;total++;const t=+q?.migratedAt||0;if(t&&(oldest===null||t<oldest))oldest=t;
-     if(t&&now-t<72*3600000){const h=Math.floor(t/3600000)*3600000;const e=hours[h]||(hours[h]={n:0,first:t});e.n++;if(t<e.first)e.first=t;}}
+     if(t&&now-t<72*3600000){recentIds.push([key.slice(2),q.name||'',t]);const h=Math.floor(t/3600000)*3600000;const e=hours[h]||(hours[h]={n:0,first:t});e.n++;if(t<e.first)e.first=t;}}
     if(page.size<500)break;}while(true);
    let oldestMatch=null,after2;
    do{const page=await this.ctx.storage.list({prefix:'match:',limit:1000,...(after2?{startAfter:after2}:{})});
     for(const[key,r]of page){after2=key;const t=+r?.at||0;if(t&&(oldestMatch===null||t<oldestMatch))oldestMatch=t;}
     if(page.size<1000)break;}while(true);
    let bookmark=null;try{bookmark=await this.ctx.storage.getCurrentBookmark();}catch{}
-   return reply({total,oldest,oldestMatch,hours:Object.entries(hours).map(([h,e])=>({hour:+h,n:e.n,first:e.first})).sort((x,y)=>x.hour-y.hour),pitr:!!bookmark});
+   return reply({total,oldest,oldestMatch,hours:Object.entries(hours).map(([h,e])=>({hour:+h,n:e.n,first:e.first})).sort((x,y)=>x.hour-y.hour),pitr:!!bookmark,recent:b.ids?recentIds:undefined});
+  }
+  // admin-lookup: the stored records of some accounts (to find lost progress at an earlier restore point);
+  // admin-put-back: write saved records back for accounts that were rebuilt after a loss (only rebuilt accounts, so a
+  // newer real profile is never overwritten); the records come from admin-lookup at an earlier point in time
+  if(b.action==='admin-lookup'){
+   if(uid!==ADMIN_UID)throw new ApiError('Only the admin can do that',403);
+   const ids=(Array.isArray(b.uids)?b.uids:[]).filter(x=>ID.test(String(x))).slice(0,200);
+   const out={};for(const id of ids){const q=await this.ctx.storage.get('p:'+id);out[id]=q?(b.full?q:{xp:q.xp,games:q.games,wins:q.wins,name:q.name,rev:q.rev,migratedAt:q.migratedAt,imported:q.imported,own:Object.fromEntries(Object.entries(q.own||{}).map(([k,v])=>[k,v.length]))}):null;}
+   return reply({accounts:out});
+  }
+  if(b.action==='admin-put-back'){
+   if(uid!==ADMIN_UID)throw new ApiError('Only the admin can do that',403);
+   const recs=b.records&&typeof b.records==='object'?b.records:{},since=Number(b.since)||0,done=[],skipped=[];
+   for(const[id,rec]of Object.entries(recs).slice(0,200)){
+    if(!ID.test(id)||!rec||typeof rec!=='object'||!Number.isFinite(rec.xp)){skipped.push(id);continue;}
+    const cur=await this.ctx.storage.get('p:'+id);
+    if(cur&&!(cur.migratedAt>=since)){skipped.push(id);continue;}       // only accounts rebuilt after the loss
+    const q={...rec,rev:Math.max(rec.rev||0,cur?.rev||0)+1};
+    await this.ctx.storage.transaction(async tx=>{await tx.put('p:'+id,q);await tx.put('lb:'+id,publicRow(q,id));});done.push(id);
+   }
+   return reply({done,skipped});
   }
   if(b.action==='admin-restore'){
    if(uid!==ADMIN_UID)throw new ApiError('Only the admin can do that',403);
