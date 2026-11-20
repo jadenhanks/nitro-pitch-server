@@ -59,6 +59,10 @@ The prebuilt `public/index.html` asset is unchanged. `src/game-shell.js` applies
 
 Run `node --test tests/*.test.mjs` (Node 22+) before deployment. These tests cover hibernation, transient reconnects, explicit departures, stale socket callbacks, atomic snapshots, tab wake, stationary gameplay timestamps, the game-script syntax, and zero-second goals/ground contacts including Dropshot.
 
+### Lobby chat history (Update 5.62)
+
+Players publish only their latest five lobby messages in presence. The `lobby` Room keeps the most recent 40 messages (at most two hours old, at most 10 per player per 10 s) in Durable Object storage under `chat` and sends them as `chat-history` when a player connects, so the chat is not empty on arrival. Mutes, blocks and the swear filter still apply on display; the stored `ui` is the server-verified account ID.
+
 ### Player tools
 
 `src/player-features.txt` is imported as text by Wrangler and inserted inside the original game closure by `src/game-shell.js`. It contains the player-tool UI and pure data helpers; it must not be loaded as a separate script because the game state is private to that closure. Match history (20 entries) and blocks (100 entries) use account-scoped browser storage and are described on the Cookies page. The existing Nitro Pass quest rewards are reused. Rematch readiness is broadcast by the Room only after every connected human votes for the same match and roster; clients never send the ready event.

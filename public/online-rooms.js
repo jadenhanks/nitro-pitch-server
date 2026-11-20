@@ -108,6 +108,8 @@
           this.everConnected=true;this.setConnected(true);this.resolve(this);this.ping();return;
         }
         if(message.t==='rematch-ready'&&typeof message.mid==='string'&&Array.isArray(message.voters)&&message.voters.every(id=>typeof id==='string')){for(const cb of this.events.get(message.t)||[]){try{cb(message);}catch(error){console.error(error);}}return;}
+        // recent lobby chat the server kept, sent once on arrival (kept for a listener that subscribes later)
+        if(message.t==='chat-history'&&Array.isArray(message.msgs)){this.chatHistory=message.msgs;for(const cb of this.events.get(message.t)||[]){try{cb(message);}catch(error){console.error(error);}}return;}
         if(message.t==='resync'){this.send({t:'full',p:this.pres});return;}
         if(typeof message.id==='string'){
           if(message.t==='j'||message.t==='f')this.upsert(message.id,message.p,true);
@@ -161,7 +163,7 @@
     onPeers(cb){this.cbs.push(cb);setTimeout(()=>{if(!this.closed&&this.cbs.includes(cb))cb({peers:this.snap,joined:this.snap,left:[],updated:[]});});return()=>{this.cbs=this.cbs.filter(value=>value!==cb);};}
     onConnection(cb){this.connCbs.push(cb);setTimeout(()=>{if(!this.closed&&this.connCbs.includes(cb))cb(this.isConnected);});return()=>{this.connCbs=this.connCbs.filter(value=>value!==cb);};}
     async emit(){}
-    on(name,cb){if(typeof cb!=='function')return()=>{};if(!this.events.has(name))this.events.set(name,new Set());const set=this.events.get(name);set.add(cb);return()=>set.delete(cb);}
+    on(name,cb){if(typeof cb!=='function')return()=>{};if(!this.events.has(name))this.events.set(name,new Set());const set=this.events.get(name);set.add(cb);if(name==='chat-history'&&this.chatHistory){const msgs=this.chatHistory;setTimeout(()=>{if(set.has(cb))cb({t:'chat-history',msgs});},0);}return()=>set.delete(cb);}
     async leave(){
       if(this.closed)return;
       this.send({t:'bye'});this.closed=true;clearTimeout(this.firstTimer);clearTimeout(this.retryTimer);clearTimeout(this.replyTimer);clearInterval(this.heartbeatTimer);

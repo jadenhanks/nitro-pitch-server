@@ -141,3 +141,21 @@ test('ball camera angle changes framing and wall contact does not roll the horiz
  f.ctx.settings.angle=-10;for(let i=0;i<120;i++)f.ctx.updateCamera(1/60,2+i/60);
  assert(Math.abs(projectedBall(f).y-first)>.1);const direction=f.camera.getWorldDirection(new THREE.Vector3()),right=new THREE.Vector3().crossVectors(direction,f.camera.up).normalize();assert(Math.abs(right.y)<.02);
 });
+
+const carOnScreen=f=>{f.camera.updateMatrixWorld();return f.car.rp.clone().project(f.camera);};
+test('right-stick swivel looks behind the car, keeps the car on screen, and swings back when released',()=>{
+ const f=fixture();for(let i=0;i<120;i++)f.ctx.updateCamera(1/60,i/60);
+ const base=f.camera.position.clone(),baseCar=carOnScreen(f);assert(base.z<f.car.rp.z-2);
+ f.ctx.padList=()=>[{axes:[0,0,1,0]}];for(let i=0;i<90;i++)f.ctx.updateCamera(1/60,2+i/60);
+ assert(f.camera.position.z>f.car.rp.z+2,'full right stick looks back from in front of the car');
+ const car=carOnScreen(f);assert(Math.abs(car.x-baseCar.x)<.05&&Math.abs(car.y-baseCar.y)<.05&&car.z<1);
+ f.ctx.padList=()=>[{axes:[0,0,0.05,0]}];for(let i=0;i<120;i++)f.ctx.updateCamera(1/60,4+i/60);
+ assert(f.camera.position.distanceTo(base)<.2,'inside the dead zone the camera returns to normal');
+});
+test('swivel speed and transition speed settings change how fast the camera moves',()=>{
+ const turned=swivel=>{const f=fixture();f.ctx.settings.swivel=swivel;for(let i=0;i<60;i++)f.ctx.updateCamera(1/60,i/60);f.ctx.padList=()=>[{axes:[0,0,1,0]}];for(let i=0;i<6;i++)f.ctx.updateCamera(1/60,1+i/60);const o=f.camera.position.clone().sub(f.car.rp);return Math.abs(Math.atan2(o.x,-o.z));};
+ assert(turned(10)>turned(2)*1.5,'a higher swivel speed swings round faster');
+ const blendLeft=trans=>{const f=fixture();f.ctx.settings.trans=trans;f.ctx.camBlend=1;for(let i=0;i<12;i++)f.ctx.updateCamera(1/60,i/60);return vm.runInContext('camBlend',f.ctx);};
+ assert(blendLeft(2)<blendLeft(0.5));
+ const f=fixture();delete f.ctx.settings.trans;delete f.ctx.settings.swivel;for(let i=0;i<30;i++)f.ctx.updateCamera(1/60,i/60);assert(finite(f.camera.position));
+});

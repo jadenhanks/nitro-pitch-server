@@ -101,7 +101,7 @@ const NPDrive = (() => {
       let error=Math.atan2(axis.dot(rigUp),clamp(behind.dot(desired),-1,1));
       if(Math.abs(error)>Math.PI-0.01)error=turnSign*Math.abs(error);
       if(Math.abs(error)>1e-5)turnSign=Math.sign(error);
-      const rate=(camBlend>0?10:22)*clamp(ratio,0.4,1),limit=!active?(frame.mobile?3.2:5):(frame.mobile?7:9),turn=clamp(error*(1-Math.exp(-rate*dt)),-limit*dt,limit*dt);
+      const rate=(camBlend>0?10*npCamTrans():22)*clamp(ratio,0.4,1),limit=!active?(frame.mobile?3.2:5):(frame.mobile?7:9),turn=clamp(error*(1-Math.exp(-rate*dt)),-limit*dt,limit*dt);
       behind.applyAxisAngle(rigUp,turn).normalize();
     }
     camDir.copy(behind);camF.copy(behind).negate();
@@ -122,8 +122,8 @@ const NPDrive = (() => {
     const ride=camFollow&&dt>0&&delta.lengthSq()<(60*dt+0.5)**2;
     if(ride)camPos.add(delta);else camPos.copy(_w);
     camPrevC.copy(c);camFollow=true;
-    camBlend=Math.max(0,camBlend-dt*2);
-    camPos.lerp(_w,1-Math.exp(-(camBlend>0?10:60)*dt));
+    camBlend=Math.max(0,camBlend-dt*2*npCamTrans());
+    camPos.lerp(_w,1-Math.exp(-(camBlend>0?10*npCamTrans():60)*dt));
     // Clamp the actual smoothed position too; an old position must not travel
     // through the wall while its safe target is on the playing field.
     constrain(camPos,c,onWall);
@@ -166,4 +166,31 @@ updateCamera=function(dt,now){
     if(viewOffsetOn){camera.clearViewOffset();viewOffsetOn=false;camera.updateProjectionMatrix();}
     NPDrive.ballCamera(dt,!!rearView);
   }else{NPDrive.reset();npPreviousCamera(dt,now);}
+  npSwivel(dt,playerView&&!(typeof paused!=='undefined'&&paused)&&!!me.car&&!me.car.dead);
 };
+// Camera settings from Rocket League's camera menu that the game was missing:
+// Transition speed: how quickly the camera swings round when you switch ball cam on or off (1 = the old speed).
+function npCamTrans(){return clamp(Number.isFinite(settings.trans)?settings.trans:1,0.5,2);}
+// Swivel: the controller's right stick looks around your car (left/right up to behind you, up/down tilts) and lets
+// go back to the normal view. Swivel speed: how quickly the view follows the stick. The whole camera turns about your
+// car, so your car keeps its place on screen.
+const npSw={yaw:0,pitch:0,off:new V3(),dir:new V3(),side:new V3(),up:new V3()};
+function npSwivelStick(){
+  let x=0,y=0;
+  for(const gp of typeof padList==='function'?padList():[]){const ax=gp.axes||[];if(Math.abs(ax[2]||0)>Math.abs(x))x=ax[2]||0;if(Math.abs(ax[3]||0)>Math.abs(y))y=ax[3]||0;}
+  const dead=clamp(Number.isFinite(settings.dead)?settings.dead:0.15,0.1,0.5),f=v=>Math.abs(v)<dead?0:Math.sign(v)*(Math.abs(v)-dead)/(1-dead);
+  return[f(x),f(y)];
+}
+function npSwivel(dt,on){
+  const[sx,sy]=on?npSwivelStick():[0,0];
+  const k=1-Math.exp(-clamp(Number.isFinite(settings.swivel)?settings.swivel:5,1,10)*2.4*clamp(dt,0,0.05));
+  npSw.yaw+=(-sx*2.9-npSw.yaw)*k;npSw.pitch+=(sy*0.5-npSw.pitch)*k;
+  if(!on||(Math.abs(npSw.yaw)<1e-3&&Math.abs(npSw.pitch)<1e-3))return;
+  const c=me.car.rp,S=npSw;
+  S.off.subVectors(camera.position,c);S.dir.subVectors(camLook,camera.position);S.up.copy(camera.up);
+  for(const v of[S.off,S.dir,S.up])v.applyAxisAngle(UP,S.yaw);
+  S.side.crossVectors(UP,S.off);
+  if(S.side.lengthSq()>1e-6){S.side.normalize();for(const v of[S.off,S.dir,S.up])v.applyAxisAngle(S.side,S.pitch);}
+  camera.position.copy(c).add(S.off);clampCam(camera.position,c,false);
+  camera.up.copy(S.up);camera.lookAt(S.dir.add(camera.position));
+}

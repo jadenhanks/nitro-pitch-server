@@ -2,12 +2,16 @@ import { DurableObject } from 'cloudflare:workers';
 import {identify,reply} from './firebase-auth.js';
 import {validCar,validGame,validHit,resultEvidence,rankedRules} from './room-guard.js';
 const MAX_PLAYERS=400,MAX_MSG=64000,RECONNECT_GRACE=12000,MATCH_RECONNECT_GRACE=60000;
+// Lobby chat history: players publish their last few messages in presence; the lobby keeps the most
+// recent ones so a player who just arrived sees the conversation instead of an empty chat.
+const CHAT_KEEP=40,CHAT_AGE=2*3600000;
 const cleanId=value=>String(value||'').replace(/[^A-Za-z0-9_-]/g,'').slice(0,48);
 const bytes=new TextEncoder();
 
 export class Room extends DurableObject {
   constructor(ctx,env){
     super(ctx,env);this.pres=new Map();this.partial=new Set();this.departures=new Map();this.resyncAt=new Map();this.rematchSent=null;this.host=null;this.orders=new Map();this.rate=new Map();this.matchRecords=new Map();this.name="";
+    this.chat=[];this.chatKeys=new Set();this.chatRate=new Map();
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping','pong'));
     // Socket attachments survive hibernation. Full small lobby records fit; large
     // match records retain identity/seat metadata until the client resends them.
@@ -17,6 +21,8 @@ export class Room extends DurableObject {
     }
     ctx.blockConcurrencyWhile(async()=>{
       this.name=await ctx.storage.get('room-name')||'';
+      const chat=await ctx.storage.get('chat');
+      if(chat&&Array.isArray(chat.msgs)){this.chat=chat.msgs.filter(m=>Date.now()-m.at<CHAT_AGE);this.chatKeys=new Set([...(Array.isArray(chat.keys)?chat.keys:[]),...this.chat.map(m=>m.k)]);}
       const records=await ctx.storage.list({prefix:'match:'});for(const[k,r]of records)if(Date.now()-(r.ended||r.started)<86400000)this.matchRecords.set(k.slice(6),r);else await ctx.storage.delete(k);
       const saved=await ctx.storage.list({prefix:'leave:'});
       for(const[key,value]of saved){const id=key.slice(6);if(value.until>Date.now()&&!this.pres.has(id)){this.pres.set(id,value.p);this.departures.set(id,value.until);this.partial.add(id);}else await ctx.storage.delete(key);}
@@ -43,6 +49,30 @@ export class Room extends DurableObject {
   state(ws,created=false){
     const id=this.info(ws).id,members=Object.create(null);for(const[key,value]of this.pres)if(key!==id)members[key]=value;
     this.send(ws,{t:'state',you:id,created,host:this.host,members,memberIds:Object.keys(members),pending:[...this.partial].filter(key=>key!==id),reconnecting:Object.fromEntries(this.departures)});
+  }
+  // Take in new lobby chat lines from a player's presence (ch: [[id, sentAt, text]], their latest few).
+  async noteChat(id,p){
+    if(this.name!=='lobby'||!p||!Array.isArray(p.ch))return;
+    const now=Date.now();let added=false;
+    for(const m of p.ch.slice(-5)){
+      if(!Array.isArray(m)||!(typeof m[0]==='string'||Number.isFinite(m[0]))||!Number.isFinite(m[1])||typeof m[2]!=='string')continue;
+      const k=id+':'+String(m[0]).slice(0,16);if(this.chatKeys.has(k)||now-m[1]>CHAT_AGE)continue;
+      const tx=m[2].replace(/\s+/g,' ').trim().slice(0,200);if(!tx)continue;
+      const recent=(this.chatRate.get(id)||[]).filter(t=>now-t<10000);if(recent.length>=10)continue;
+      recent.push(now);this.chatRate.set(id,recent);this.chatKeys.add(k);added=true;
+      this.chat.push({k,nm:typeof p.nm==='string'?p.nm.slice(0,32):'',lv:Number.isFinite(p.lv)?p.lv:1,rb:Number.isFinite(p.rb)?p.rb:-1,
+        ui:typeof p.ui==='string'?p.ui.slice(0,40):null,cl:Array.isArray(p.cl)?p.cl.slice(0,3).map(x=>typeof x==='string'?x.slice(0,40):''):null,ts:m[1],tx,at:now});
+    }
+    if(!added)return;
+    this.chat=this.chat.filter(m=>now-m.at<CHAT_AGE).slice(-CHAT_KEEP);
+    while(this.chatKeys.size>1000)this.chatKeys.delete(this.chatKeys.values().next().value);
+    for(const[key,times]of this.chatRate)if(!times.some(t=>now-t<10000))this.chatRate.delete(key);
+    await this.ctx.storage.put('chat',{msgs:this.chat,keys:[...this.chatKeys].slice(-500)});
+  }
+  sendChat(ws){
+    if(this.name!=='lobby')return;
+    const now=Date.now(),msgs=this.chat.filter(m=>now-m.at<CHAT_AGE);
+    if(msgs.length)this.send(ws,{t:'chat-history',msgs});
   }
   snapshots(){for(const ws of this.ctx.getWebSockets())if(ws.readyState===1&&this.info(ws).ok)this.state(ws);}
   resync(){
@@ -156,7 +186,8 @@ export class Room extends DurableObject {
       this.pres.set(id,p);if(!this.orders.has(id))this.orders.set(id,info.order||Date.now());this.partial.delete(id);this.resyncAt.delete(id);this.cache(ws,id,p);
       if(this.departures.delete(id)){await this.ctx.storage.delete('leave:'+id);await this.scheduleAlarm();this.bcast({t:'connection',id,until:0});}
       if(message.t==='hello'||message.t==='sync')this.state(ws,created);
-      this.chooseHost();await this.track(id,p);if(changed)this.bcast({t:known?'f':'j',id,p},ws);this.resync();this.checkRematch(message.t==='hello'||message.t==='sync');return;
+      if(message.t==='hello')this.sendChat(ws);
+      this.chooseHost();await this.track(id,p);if(changed)this.bcast({t:known?'f':'j',id,p},ws);this.resync();this.checkRematch(message.t==='hello'||message.t==='sync');await this.noteChat(id,p);return;
     }
     if(message.t==='p'&&message.p&&typeof message.p==='object'&&!Array.isArray(message.p)){
       if(!info.ok||!this.pres.has(id)||this.partial.has(id)){this.send(ws,{t:'resync'});return;}
@@ -165,7 +196,7 @@ export class Room extends DurableObject {
         if(['__proto__','constructor','prototype'].includes(key))continue;
         out[key]=message.p[key];if(out[key]===null)delete current[key];else current[key]=out[key];
       }
-      this.cache(ws,id,current);this.chooseHost();await this.track(id,current);this.bcast({t:'p',id,p:out},ws);this.resync();this.checkRematch();return;
+      this.cache(ws,id,current);this.chooseHost();await this.track(id,current);this.bcast({t:'p',id,p:out},ws);this.resync();this.checkRematch();if('ch' in out)await this.noteChat(id,current);return;
     }
     if(message.t==='bye'){await this.gone(ws,true);try{ws.close(1000,'bye');}catch(_){}}
   }

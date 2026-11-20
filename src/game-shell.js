@@ -99,7 +99,7 @@ const patches = [
   },
   {
     "before": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026111001;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n",
-    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026111059;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
+    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026112001;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
   },
   {
     "before": "// RLUtilities-style bounce: restitution 0.6 on the normal part, friction that trades sliding for spin\nfunction ballContact(b, n, r) {\n  if (n.y > 0.7 && b === ball && b.p.y < r + 1) ball.floorT = nowS();     // touched the floor (the 0:00 rule)\n  const vn = b.v.dot(n);\n  if (vn >= 0) return;\n",
@@ -171,7 +171,7 @@ const patches = [
   },
   {
     "before": "const PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n  \"ADMIN items (car, decal, wheels, topper, antenna, title, banner) only show for the admin and players he gifted them to. Copies anyone gave themselves are gone\",\n] };\n",
-    "after": "const PATCH_NOTES = {\n  \"v\": \"5.61\",\n  \"title\": \"Update 5.61: Works on more devices\",\n  \"notes\": [\n    \"Add Nitro Pitch to your home screen and it opens full screen like an app, with no browser bar.\",\n    \"The game now works on older iPhones, iPads and school Chromebooks (fixed several errors there).\",\n    \"The game no longer depends on an outside site to load its 3D graphics, so it starts on networks that blocked it.\",\n    \"Online matches wait a little longer for the result to be confirmed, so fewer matches go unsaved.\",\n    \"Fixed signing in and creating accounts on older browsers.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
+    "after": "const PATCH_NOTES = {\n  \"v\": \"5.62\",\n  \"title\": \"Update 5.62: Your feedback, fixed\",\n  \"notes\": [\n    \"Lobby chat shows the recent conversation as soon as you open the game, instead of staying empty until you've played a match.\",\n    \"Online hits go where you hit them: on slower connections the ball no longer snaps back or flies off in another direction after your touch.\",\n    \"50/50s only mix two hits when opponents really touch the ball at the same time.\",\n    \"Harder bots: a new Legend difficulty in Exhibition and private matches, and casual and ranked bots get tougher as your level goes up.\",\n    \"New camera settings: Swivel speed (look around your car with the controller's right stick) and Transition speed (how fast ball cam switches).\",\n    \"Clearer account messages: progress earned as a guest stays in that browser and a new account starts at Level 1, so you know before you sign up.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
   },
   {
     "before": "<title>Nitro Pitch</title>",
@@ -520,6 +520,102 @@ const patches = [
   {
     "before": "  if (typeof s.name === \"string\") o.name = cleanName(s.name).slice(0, 14);\n",
     "after": "  if (typeof s.name === \"string\") o.name = cleanName(s.name).slice(0, 14);\n  if (s.ev && typeof s.ev === \"object\") o.ev = { hd: int(s.ev.hd | 0, 0, 1e6), got: int(s.ev.got | 0, 0, 1e6), adv: (s.ev.adv | 0) & 0x1ffffff };\n"
+  },
+  {
+    "before": "      hs: [ball.hsT >= 0 ? ball.hsT : -1, r2(ball.hsS || 0)],",
+    "after": "      hs: [ball.hsT >= 0 ? ball.hsT : -1, r2(ball.hsS || 0)],\n      // each player's last hit the host has applied: their game keeps its own hit until the host's ball includes it\n      ha: Object.fromEntries([...hitSeen].slice(0, 8)),"
+  },
+  {
+    "before": "function applyHostState(g) {",
+    "after": "// your last hit as the host has applied it (null: the host runs an older build that does not say)\nlet npHitAck = null;\n// take the host's ball again once it includes your latest hit. A fixed wait (0.4 s) was too short on slower\n// connections: the host's older ball came back and the ball snapped backwards or went the wrong way after a hit.\nfunction npBallSettled() {\n  const since = nowS() - me.lastHit;\n  if (since > 1.5) return true;                       // a lost or refused hit never leaves the ball out of sync\n  if (npHitAck === null) return since > 0.4;\n  return npHitAck >= me.hitN && since > 0.05;\n}\nfunction applyHostState(g) {\n  npHitAck = g.ha && typeof g.ha === \"object\" && !Array.isArray(g.ha) ? (fin(g.ha[myPeerId()]) ? g.ha[myPeerId()] : -1) : null;"
+  },
+  {
+    "before": "    else if (nowS() - me.lastHit > 0.4) {",
+    "after": "    else if (npBallSettled()) {"
+  },
+  {
+    "before": "if (lt && lt.key !== p.peer && nowS() - lt.t < 0.25)",
+    "after": "if (lt && lt.key !== p.peer && lt.team !== r.team && nowS() - lt.t < 0.15)"
+  },
+  {
+    "before": "  roomApi = room; onlineOk = true;\n",
+    "after": "  roomApi = room; onlineOk = true;\n  // the lobby's recent chat (kept by the server), so the chat isn't empty when you arrive\n  if (typeof room.on === \"function\") room.on(\"chat-history\", m => lchatHistory(m && m.msgs));\n"
+  },
+  {
+    "before": "// take in everyone's published messages (runs on every lobby change, in menus and in matches)\n",
+    "after": "// recent lobby chat the server kept (the last 40 messages, up to 2 hours old): players only publish their latest few\n// messages while online, so without this the chat was empty until you had sat in the lobby (or a match) for a while\nfunction lchatHistory(list) {\n  if (!Array.isArray(list)) return;\n  const mine = myPeerId(), uid = myUid(), now = Date.now();\n  let added = 0;\n  for (const m of list.slice(-LCHAT_KEEP)) {\n    if (!m || typeof m.k !== \"string\" || typeof m.tx !== \"string\" || !fin(m.at) || !fin(m.ts)) continue;\n    const k = m.k.slice(0, 80);\n    if (lchat.keys.has(k) || k.split(\":\")[0] === mine) continue;\n    lchat.keys.add(k);\n    const tx = lchatText(m.tx), nm = cleanName(m.nm).slice(0, 14);\n    if (!tx || lchat.msgs.some(x => x.ts === m.ts && x.nm === nm && x.tx === tx)) continue;\n    const ui = typeof m.ui === \"string\" && UID_RE.test(m.ui) ? m.ui : \"\", pcl = presClan({ cl: m.cl });\n    lchatAdd({ k, ui, ct: pcl ? pcl.tag : \"\", cc: pcl ? pcl.color : \"\", nm, lv: clamp(m.lv | 0, 1, MAXLV), rb: fin(m.rb) ? int(m.rb, -1, Ranked.RANKS.length - 1) : -1, tx, ts: m.ts, at: Math.min(m.at, now), me: !!(uid && ui === uid) });\n    added++;\n  }\n  if (added) { lchat.key = \"\"; lchatRender(); }\n}\n// take in everyone's published messages (runs on every lobby change, in menus and in matches)\n"
+  },
+  {
+    "before": "  else $(\"acctText\").textContent = \"Playing as a guest. Make an account to keep your level, name and settings on any device.\";",
+    "after": "  else $(\"acctText\").textContent = \"Playing as a guest: your progress is only saved in this browser. Make an account (or log in) to save your level, items and ranks on any device.\";"
+  },
+  {
+    "before": "Your current level, name and settings move into the new account. There's no email, so remember your password.\"",
+    "after": "Your settings come with you. Levels, items and ranks earned as a guest can't be moved into a new account: it starts at Level 1. There's no email, so remember your password.\""
+  },
+  {
+    "before": "$(\"acForm\").onsubmit = async e => {",
+    "after": "// a guest with progress is told once, before signing up, that a new account starts at Level 1 (the server checks every\n// level and item, so a browser's guest save can't be copied in). Players thought their account hadn't saved.\nlet acctWarned = 0;\n$(\"acForm\").onsubmit = async e => {"
+  },
+  {
+    "before": "  $(\"acGo\").disabled = true; setAcctMsg(su ? \"Creating your account…\" : \"Logging in…\");",
+    "after": "  if (su && window.NPProgressAPI && !A.user() && myLevel() > 1 && acctWarned !== myLevel()) {\n    acctWarned = myLevel();\n    setAcctMsg(\"Heads up: your guest progress (Level \" + myLevel() + \") can't be moved into a new account, which starts at Level 1. Press Create account again to go ahead, or Log in if you already have an account.\", true);\n    return;\n  }\n  $(\"acGo\").disabled = true; setAcctMsg(su ? \"Creating your account…\" : \"Logging in…\");"
+  },
+  {
+    "before": "const BOT_DF = [0.6, 0.88, 1.08];",
+    "after": "// (Legend: the top of the scale, above Supersonic Legend's floor: no aim noise, aerials up to the ceiling)\nconst BOT_DF = [0.6, 0.88, 1.08, 1.22];\n// matchmade bots (casual, and ranked when not enough players are online) play at your MMR, but never below what your\n// level says: experienced players with a new or low MMR were getting Bronze bots. Level 10 plays Silver bots, rising to\n// about Diamond from level 70.\nconst npLevelBotFloor = lv => lv < 10 ? 0 : 0.64 + 0.33 * clamp((lv - 10) / 60, 0, 1);\nfunction npBotSkill(bm) { return Math.max(Ranked.botSkill(bm), npLevelBotFloor(myLevel())); }"
+  },
+  {
+    "before": "exh.df = clamp(e.df | 0, 0, 2)",
+    "after": "exh.df = clamp(e.df | 0, 0, 3)"
+  },
+  {
+    "before": "match.df = clamp(g.df | 0, 0, 2);",
+    "after": "match.df = clamp(g.df | 0, 0, 3);"
+  },
+  {
+    "before": "priv.bots = clamp(v.bots | 0, 0, 3)",
+    "after": "priv.bots = clamp(v.bots | 0, 0, 4)"
+  },
+  {
+    "before": "segInto($(\"pvBots\"), [\"None\", \"Rookie\", \"Pro\", \"All-Star\"]",
+    "after": "segInto($(\"pvBots\"), [\"None\", \"Rookie\", \"Pro\", \"All-Star\", \"Legend\"]"
+  },
+  {
+    "before": "segInto($(\"exDiff\"), [\"Rookie\", \"Pro\", \"All-Star\"]",
+    "after": "segInto($(\"exDiff\"), [\"Rookie\", \"Pro\", \"All-Star\", \"Legend\"]"
+  },
+  {
+    "before": "match.bf ? [\"Rookie\", \"Pro\", \"All-Star\"][match.df] + \" bots\"",
+    "after": "match.bf ? [\"Rookie\", \"Pro\", \"All-Star\", \"Legend\"][match.df] + \" bots\""
+  },
+  {
+    "before": "h(\"small\", \"\", [\"Rookie\", \"Pro\", \"All-Star\"][match.df] + \" · ",
+    "after": "h(\"small\", \"\", [\"Rookie\", \"Pro\", \"All-Star\", \"Legend\"][match.df] + \" · "
+  },
+  {
+    "before": "bs: Ranked.botSkill(bm), team: Math.random() < 0.5 ? 0 : 1, expect: 1 };",
+    "after": "bs: npBotSkill(bm), team: Math.random() < 0.5 ? 0 : 1, expect: 1 };"
+  },
+  {
+    "before": "bm, bs: Ranked.botSkill(bm), team: best.team",
+    "after": "bm, bs: npBotSkill(bm), team: best.team"
+  },
+  {
+    "before": "dist: 280, height: 100, angle: -3, stiff: 0.5,",
+    "after": "dist: 280, height: 100, angle: -3, stiff: 0.5, swivel: 5, trans: 1,"
+  },
+  {
+    "before": "<input type=\"range\" id=\"sStiff\" min=\"0\" max=\"1\" step=\"0.05\"></label>",
+    "after": "<input type=\"range\" id=\"sStiff\" min=\"0\" max=\"1\" step=\"0.05\"></label>\n            <label class=\"f\" for=\"sSwivel\" title=\"Controller: the right stick looks around your car\">Swivel speed <span class=\"val\" id=\"sSwivelV\"></span><input type=\"range\" id=\"sSwivel\" min=\"1\" max=\"10\" step=\"0.5\"></label>\n            <label class=\"f\" for=\"sTrans\" title=\"How quickly the camera swings round when you switch ball cam on or off\">Transition speed <span class=\"val\" id=\"sTransV\"></span><input type=\"range\" id=\"sTrans\" min=\"0.5\" max=\"2\" step=\"0.1\"></label>"
+  },
+  {
+    "before": "[\"sStiff\", \"stiff\", v => v.toFixed(2)],",
+    "after": "[\"sStiff\", \"stiff\", v => v.toFixed(2)], [\"sSwivel\", \"swivel\", v => v.toFixed(1)], [\"sTrans\", \"trans\", v => v.toFixed(1)],"
+  },
+  {
+    "before": "  camBlend = Math.max(0, camBlend - dt * 2);",
+    "after": "  camBlend = Math.max(0, camBlend - dt * 2 * npCamTrans());"
   }
 ];
 
