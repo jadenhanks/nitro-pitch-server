@@ -8,4 +8,8 @@ Before publishing:
 - Preserve the existing `checkVersion` / `noteBuild` / `showUpdateBar` refresh popup. It appears on menu screens after a newer build is detected; do not interrupt a match or matchmaking with a forced refresh.
 - Run `node --test tests/*.test.mjs` and the Wrangler dry-run. Check Cloudflare production deployment before claiming the update is live.
 
+## Publishing
+
+The owner wants every finished change live without being asked. Once the checks above pass, commit, push the working branch, and fast-forward `main` (Cloudflare deploys `main`), then confirm production serves the new build. Never push to `main` when tests or the dry-run fail; report why instead. If `main` has moved and can't fast-forward, merge it in and rerun the tests before pushing.
+
 The bundled `public/index.html` remains the source asset; `src/game-shell.js` applies checked compatibility edits before serving it. If replacing the bundled game, update its anchors and rerun the tests.
