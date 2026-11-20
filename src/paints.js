@@ -32,6 +32,7 @@ export function addPaintedCars(catalog) {
   }
   catalog.body.push({ name: 'Tung Tung Sahur', lv: 1, rar: 7, admin: true });   // ADMIN design car (src/paints.txt builds it)
   catalog.body.push({ name: 'Shell Shock', lv: 1, rar: 7, admin: true });       // ADMIN design: an original turtle ninja
+  catalog.body.push({ name: 'Margay', lv: 1, rar: 7, admin: true });            // ADMIN design: a realistic spotted wild cat (src/margay.txt)
   Object.defineProperty(catalog, 'paintedBase', { value: base });
   return catalog;
 }

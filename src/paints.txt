@@ -23,6 +23,8 @@ const NPPaints = (() => {
   const TUNG = CARS.length;
   CARS.push({ ...CARS[0], name: "Tung Tung Sahur", lv: 1, rar: 7, admin: true, drop: false, pass: undefined, ev: undefined, tung: true });
   CARS.push({ ...CARS[0], name: "Shell Shock", lv: 1, rar: 7, admin: true, drop: false, pass: undefined, ev: undefined, turtle: true });
+  // ADMIN design: Margay, a realistic spotted wild cat (src/margay.txt) that runs, jumps and lands as the car moves
+  CARS.push({ ...CARS[0], name: "Margay", lv: 1, rar: 7, admin: true, drop: false, pass: undefined, ev: undefined, cat: true });
   const painted = i => { const c = CARS[i]; return c && c.painted ? c.painted : null; };
 
   // ---- trim paint: a per-colour copy of the car's shared atlas material with the trim cells repainted
@@ -294,8 +296,54 @@ const NPPaints = (() => {
     g.name = "car:Shell Shock";
     return car;
   }
+  // ---- Margay: the cat replaces the Octane's look (it still drives and hits exactly like an Octane). Its animation is
+  // read from how the car actually moves each frame (speed, turning, spins, and whether it's on a surface), so it
+  // works the same for your car, other players, bots and replays.
+  function buildCat(o) {
+    const car = b0.call(CarLib, 0, o), g = car.g;
+    const box = new THREE.Box3(), wheelBox = new THREE.Box3();
+    for (const c of [...g.children]) { if (!c.isMesh) break; if (c === car.flame) continue; box.expandByObject(c); c.visible = false; }
+    for (const w of car.wheels) { const pv = w.userData && w.userData.pivot; wheelBox.expandByObject(pv || w); (pv || w).traverse(m => { if (m.isMesh) m.visible = false; }); }
+    const size = box.getSize(new THREE.Vector3()), mid = box.getCenter(new THREE.Vector3());
+    const fwd = car.flame && car.flame.position.z < 0 ? 1 : -1, S = size.z / 1.02;
+    const man = new THREE.Group(); man.position.set(0, wheelBox.isEmpty() ? 0 : wheelBox.min.y, mid.z); man.rotation.y = fwd > 0 ? 0 : Math.PI; g.add(man);
+    const holder = new THREE.Group(); holder.scale.setScalar(S); man.add(holder);
+    const cat = NPMargay.create(); cat.root.position.z = -0.09; holder.add(cat.root);
+    cat.root.traverse(m => { if (m.isMesh && m.material && m.material.name !== "margay-fur-shell") { m.castShadow = true; m.receiveShadow = false; } });
+    const P = new THREE.Vector3(), Pp = new THREE.Vector3(), Q = new THREE.Quaternion(), Qp = new THREE.Quaternion(), dq = new THREE.Quaternion();
+    const F = new THREE.Vector3(), U = new THREE.Vector3(), V = new THREE.Vector3(), W = new THREE.Vector3(), N = new THREE.Vector3();
+    let last = -1, inAir = 0;
+    const body = cat.root.children.find(m => m.isSkinnedMesh);
+    body.onBeforeRender = () => {
+      const now = performance.now() / 1000;
+      if (last >= 0 && now - last < 0.004) return;                 // once per frame (shadow and glow passes render it again)
+      const dt = last < 0 ? 0 : Math.min(0.1, now - last); last = now;
+      holder.getWorldPosition(P); holder.getWorldQuaternion(Q);
+      F.set(0, 0, 1).applyQuaternion(Q); U.set(0, 1, 0).applyQuaternion(Q);
+      let v = 0, up = 0, yaw = 0, spin = 0, ground = true;
+      if (dt > 0) {
+        V.subVectors(P, Pp).divideScalar(dt);
+        if (V.length() > 120) V.set(0, 0, 0);                        // a respawn or reset, not motion
+        const sc = holder.getWorldScale(W).x || S;
+        v = V.dot(F) / sc; up = V.dot(U) / sc;
+        dq.copy(Q).multiply(Qp.invert());
+        const ang = 2 * Math.acos(Math.min(1, Math.abs(dq.w)));
+        if (ang > 1e-5) { W.set(dq.x, dq.y, dq.z).normalize().multiplyScalar((dq.w < 0 ? -1 : 1) * ang / dt); yaw = W.dot(U); spin = W.length(); }
+        // on a surface (floor, wall, ceiling) or in the air: how far the paws are from the arena
+        try { if (typeof mode === "undefined" || mode !== "menu") { const d = arenaSDF(P, N, 0); inAir = d > 0.5 ? Math.min(inAir + dt, 1) : 0; ground = inAir < 0.06; } } catch (e) { ground = true; }
+      }
+      Pp.copy(P); Qp.copy(Q);
+      let fur = true; try { fur = settings.quality !== 0 && !(settings.quality === 3 && perfLite); } catch (e) {}
+      cat.update(dt, { v, up, yaw, spin, ground, boost: !!(car.flame && car.flame.visible), fur });
+    };
+    const d0 = car.dispose; car.dispose = function () { cat.dispose(); return d0.apply(this, arguments); };
+    car.margay = cat;
+    g.name = "car:Margay";
+    return car;
+  }
   const b0 = CarLib.build;
   CarLib.build = function (bi, o) {
+    if (CARS[bi] && CARS[bi].cat) return buildCat(o || {});
     if (CARS[bi] && CARS[bi].tung) return buildTung(o || {});
     if (CARS[bi] && CARS[bi].turtle) return buildTurtle(o || {});
     const pp = painted(bi); if (!pp) return b0.call(this, bi, o);
@@ -304,7 +352,7 @@ const NPPaints = (() => {
   // garage and drop tiles (CarLib.thumb builds internally, so painted tiles render here)
   const th0 = CarLib.thumb; let TR = null;
   CarLib.thumb = function (bi, o = {}) {
-    const isT = !!(CARS[bi] && (CARS[bi].tung || CARS[bi].turtle));
+    const isT = !!(CARS[bi] && (CARS[bi].tung || CARS[bi].turtle || CARS[bi].cat)), isCat = !!(CARS[bi] && CARS[bi].cat);
     if (!painted(bi) && !isT) return th0.call(this, bi, o);
     if (!TR) {
       const cv = document.createElement("canvas"); cv.width = 512; cv.height = 288;
@@ -316,9 +364,9 @@ const NPPaints = (() => {
       TR = { r, sc, cam: new THREE.PerspectiveCamera(26, 16 / 9, 0.05, 50) };
     }
     const car = CarLib.build(bi, o);
-    if (isT) car.g.scale.setScalar(0.72);
+    if (isT) car.g.scale.setScalar(isCat ? 0.78 : 0.72);
     car.g.rotation.y = o.yaw == null ? -0.65 : o.yaw; TR.sc.add(car.g);
-    const dist = o.dist || 6.4; TR.cam.position.set(Math.sin(0.35) * dist * 0.3, isT ? 1.0 : 1.25, dist); TR.cam.lookAt(0, isT ? 0.42 : 0.08, 0.05);
+    const dist = o.dist || 6.4; TR.cam.position.set(Math.sin(0.35) * dist * 0.3, isCat ? 1.15 : isT ? 1.0 : 1.25, dist); TR.cam.lookAt(0, isCat ? 0.32 : isT ? 0.42 : 0.08, 0.05);
     TR.r.setClearColor(0x000000, 0); TR.r.render(TR.sc, TR.cam);
     const out = document.createElement("canvas"); out.width = 256; out.height = 144; out.getContext("2d").drawImage(TR.r.domElement, 0, 0, 256, 144);
     car.dispose();

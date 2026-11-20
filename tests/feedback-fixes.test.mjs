@@ -129,3 +129,14 @@ test('account restore is admin only, and the glow never spreads broken pixels or
   assert.match(g,/checkFramebufferStatus\(gl\.FRAMEBUFFER\) !== gl\.FRAMEBUFFER_COMPLETE/);
   assert.match(g,/if \(!on \|\| broken \|\| s !== scene/);
 });
+
+test('Margay is an ADMIN design car right after Shell Shock in the game and on the server, built from src/margay.txt',async()=>{
+  const {addPaintedCars}=await import('../src/paints.js');
+  const {catalog}=await import('../src/reward-rules.js');
+  const cat=addPaintedCars(structuredClone(catalog)),names=cat.body.map(b=>b.name),i=names.indexOf('Margay');
+  assert(i>0);assert.equal(names[i-1],'Shell Shock');assert.equal(cat.body[i].admin,true);
+  assert(html.indexOf('const NPMargay')>0&&html.indexOf('const NPMargay')<html.indexOf('const NPPaints'),'the cat module loads before the paints module');
+  assert.match(html,/turtle: true \}\);\n  \/\/ ADMIN design: Margay[^\n]*\n  CARS\.push\(\{ \.\.\.CARS\[0\], name: "Margay", lv: 1, rar: 7, admin: true[^\n]*cat: true \}\);/);
+  assert.match(html,/if \(CARS\[bi\] && CARS\[bi\]\.cat\) return buildCat\(o \|\| \{\}\);/);
+  assert.match(html,/const d0 = car\.dispose; car\.dispose = function \(\) \{ cat\.dispose\(\);/,'the skeleton is freed with the car');
+});
