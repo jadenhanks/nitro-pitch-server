@@ -3,6 +3,107 @@
 // reflections from an environment matched to each arena theme, car paint at full strength (the flat look halved it),
 // a stronger key light, and fine grass detail on the pitch. Low, Medium and Auto's performance mode keep the original
 // flat look, so slow phones and Chromebooks are not affected.
+// Bloom: bright light (floodlights, boost flames, goal and neon lights, explosions) glows. The scene renders into a
+// high-range buffer; its brightest parts are blurred at five sizes and added back before the usual tone mapping.
+const NPBloom = (() => {
+  let on = false, rt = null, bright = null, levels = [], w = 0, h = 0;
+  const size = new THREE.Vector2(), N = 5;
+  const qScene = new THREE.Scene(), qCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
+  quad.frustumCulled = false; qScene.add(quad);
+  const vs = "varying vec2 vUv;\nvoid main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }";
+  const pass = (uniforms, fs, toneMapped = false) => new THREE.ShaderMaterial({ uniforms, vertexShader: vs, fragmentShader: fs, depthTest: false, depthWrite: false, toneMapped });
+  const brightMat = pass({ tDiffuse: { value: null }, uThr: { value: 1.15 }, uKnee: { value: 0.45 } },
+    `uniform sampler2D tDiffuse; uniform float uThr, uKnee; varying vec2 vUv;
+    void main() {
+      vec3 c = texture2D(tDiffuse, vUv).rgb; float l = max(c.r, max(c.g, c.b));
+      float s = clamp(l - uThr + uKnee, 0.0, 2.0 * uKnee); s = s * s / (4.0 * uKnee + 1e-4);
+      gl_FragColor = vec4(c * max(s, l - uThr) / max(l, 1e-4), 1.0);
+    }`);
+  const blurMat = pass({ tDiffuse: { value: null }, uDir: { value: new THREE.Vector2() } },
+    `uniform sampler2D tDiffuse; uniform vec2 uDir; varying vec2 vUv;
+    void main() {
+      vec3 c = texture2D(tDiffuse, vUv).rgb * 0.227027;
+      c += (texture2D(tDiffuse, vUv + uDir * 1.384615).rgb + texture2D(tDiffuse, vUv - uDir * 1.384615).rgb) * 0.316216;
+      c += (texture2D(tDiffuse, vUv + uDir * 3.230769).rgb + texture2D(tDiffuse, vUv - uDir * 3.230769).rgb) * 0.070270;
+      gl_FragColor = vec4(c, 1.0);
+    }`);
+  const compU = { tScene: { value: null }, uStrength: { value: 0.55 } };
+  for (let i = 0; i < N; i++) compU["tB" + i] = { value: null };
+  const compMat = pass(compU,
+    `uniform sampler2D tScene, tB0, tB1, tB2, tB3, tB4; uniform float uStrength; varying vec2 vUv;
+    void main() {
+      vec3 b = texture2D(tB0, vUv).rgb * 0.9 + texture2D(tB1, vUv).rgb * 0.8 + texture2D(tB2, vUv).rgb * 0.65 + texture2D(tB3, vUv).rgb * 0.5 + texture2D(tB4, vUv).rgb * 0.4;
+      gl_FragColor = vec4(texture2D(tScene, vUv).rgb + b * uStrength * 0.3, 1.0);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`, true);
+  const target = (x, y, extra) => new THREE.WebGLRenderTarget(Math.max(1, x), Math.max(1, y), Object.assign({ type: THREE.HalfFloatType, depthBuffer: false }, extra));
+  function free() { if (rt) rt.dispose(); if (bright) bright.dispose(); for (const l of levels) { l.a.dispose(); l.b.dispose(); } rt = bright = null; levels = []; w = h = 0; }
+  function fit() {
+    renderer.getDrawingBufferSize(size);
+    if (size.x === w && size.y === h && rt) return;
+    free(); w = size.x; h = size.y;
+    rt = target(w, h, { depthBuffer: true, samples: Math.min(4, renderer.capabilities.maxSamples || 0) });
+    bright = target(w >> 1, h >> 1);
+    for (let i = 0; i < N; i++) { const lw = w >> (i + 1), lh = h >> (i + 1); levels.push({ a: target(lw, lh), b: target(lw, lh), w: Math.max(1, lw), h: Math.max(1, lh) }); }
+  }
+  const base = renderer.render.bind(renderer);
+  function blit(mat, to) { quad.material = mat; renderer.setRenderTarget(to); base(qScene, qCam); }
+  function draw(s, c) {
+    fit();
+    renderer.setRenderTarget(rt); base(s, c);
+    brightMat.uniforms.tDiffuse.value = rt.texture; blit(brightMat, bright);
+    let src = bright.texture;
+    for (const l of levels) {
+      blurMat.uniforms.tDiffuse.value = src; blurMat.uniforms.uDir.value.set(1 / l.w, 0); blit(blurMat, l.b);
+      blurMat.uniforms.tDiffuse.value = l.b.texture; blurMat.uniforms.uDir.value.set(0, 1 / l.h); blit(blurMat, l.a);
+      src = l.a.texture;
+    }
+    compU.tScene.value = rt.texture; levels.forEach((l, i) => { compU["tB" + i].value = l.a.texture; });
+    blit(compMat, null);
+  }
+  // only the main view is redirected: thumbnails, reflections and shadow maps render as before
+  renderer.render = function (s, c) {
+    if (!on || s !== scene || renderer.getRenderTarget() !== null) return base(s, c);
+    try { draw(s, c); } catch (e) { on = false; free(); renderer.setRenderTarget(null); base(s, c); }
+  };
+  return { set(v) { on = v; if (!v) free(); }, get on() { return on; } };
+})();
+
+// Arena detail on High: seats in rows with aisles, crowd figures with heads and shoulders instead of boxes, and
+// floodlights bright enough to glow. Switching back restores the original pieces.
+const NPArena = (() => {
+  const plainSeats = standMat.map, plainCrowd = crowd.mesh.geometry, lampBase = lampMat.color.clone(), rimBase = rimMat.color.clone();
+  const seats = (() => {
+    const cv = document.createElement("canvas"); cv.width = 256; cv.height = 128;
+    const g = cv.getContext("2d"); g.fillStyle = "#565e6c"; g.fillRect(0, 0, 256, 128);
+    for (let row = 0; row < 4; row++) {
+      const y = row * 32;
+      g.fillStyle = "#2b303a"; g.fillRect(0, y, 256, 9);                              // the step in front of each row
+      for (let x = 0; x < 256; x += 16) {
+        if (x % 128 === 64) continue;                                                    // an aisle every 8 seats
+        g.fillStyle = "#f2f4f8"; g.fillRect(x + 2, y + 11, 12, 13);                      // seat back
+        g.fillStyle = "#c9ced8"; g.fillRect(x + 2, y + 24, 12, 5);                       // seat
+        g.fillStyle = "rgba(0,0,0,.35)"; g.fillRect(x + 2, y + 29, 12, 2);
+      }
+    }
+    const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t;
+  })();
+  const people = (() => {
+    const pts = [[0.36, -0.75], [0.4, -0.2], [0.44, 0.22], [0.3, 0.34], [0.12, 0.4], [0.16, 0.5], [0.19, 0.6], [0.15, 0.72], [0.001, 0.78]].map(([r, y]) => new THREE.Vector2(r, y));
+    const geo = new THREE.LatheGeometry(pts, 7);
+    geo.setAttribute("aCrowd", plainCrowd.getAttribute("aCrowd"));
+    return geo;
+  })();
+  function set(on) {
+    standMat.map = on ? seats : plainSeats; standMat.needsUpdate = true;
+    crowd.mesh.geometry = on ? people : plainCrowd;
+    lampMat.color.copy(lampBase).multiplyScalar(on ? 5 : 1);
+    rimMat.color.copy(rimBase).multiplyScalar(on ? 1.35 : 1);
+  }
+  return { set };
+})();
+
 const NPGraphics = (() => {
   const wanted = () => { try { return settings.quality === 2 || (settings.quality === 3 && !perfLite); } catch (e) { return false; } };
   const maxAniso = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 8;
@@ -105,6 +206,7 @@ const NPGraphics = (() => {
     floorMat.needsUpdate = true;
     lights(on);
     casters(on);
+    NPBloom.set(on); NPArena.set(on);
   }
   // a real key light and a darker ground bounce, so shapes have form; the flat look is restored when switched off
   function lights(on) {
@@ -137,4 +239,4 @@ const NPGraphics = (() => {
   updateCamera = function (dt, now) { prevCamera(dt, now); try { step(dt); } catch (e) { active = false; } };
   return { get active() { return active; }, apply, wanted };
 })();
-window.npGraphicsInfo = () => { let n = 0; scene.traverse(o => { if (o.castShadow) n++; }); return { active: NPGraphics.active, quality: settings.quality, perfLite, casters: n, shadow: sun.castShadow, env: !!scene.environment }; };
+window.npGraphicsInfo = () => { let n = 0; scene.traverse(o => { if (o.castShadow) n++; }); return { active: NPGraphics.active, quality: settings.quality, perfLite, casters: n, shadow: sun.castShadow, env: !!scene.environment, bloom: NPBloom.on }; };
