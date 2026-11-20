@@ -1,0 +1,140 @@
+// Runs inside the game closure, after the scene, renderer and frame loop exist.
+// Better graphics on High (and on Auto while the computer keeps up): real-time soft shadows that follow the action,
+// reflections from an environment matched to each arena theme, car paint at full strength (the flat look halved it),
+// a stronger key light, and fine grass detail on the pitch. Low, Medium and Auto's performance mode keep the original
+// flat look, so slow phones and Chromebooks are not affected.
+const NPGraphics = (() => {
+  const wanted = () => { try { return settings.quality === 2 || (settings.quality === 3 && !perfLite); } catch (e) { return false; } };
+  const maxAniso = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 8;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const flatLight = { hemiGround: hemi.groundColor.clone(), sunColor: sun.color.clone() };
+  const SUN_DIR = new V3(0.55, 0.78, 0.42).normalize(), SPAN = 46, MAP = 2048;
+  const focus = new V3(), menuFocus = new V3(0, 0, -1);
+  let active = null, envRT = null, envFor = -1, themeI = typeof themeNow === "number" && themeNow >= 0 ? themeNow : 0;
+
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  scene.add(sun.target);
+  sun.shadow.mapSize.set(MAP, MAP);
+  Object.assign(sun.shadow.camera, { left: -SPAN, right: SPAN, top: SPAN, bottom: -SPAN, near: 1, far: 320 });
+  sun.shadow.camera.updateProjectionMatrix();
+  sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04; sun.shadow.radius = 3;
+
+  // grass: a fine tiled bump texture (blade grain and a little clumping), about 2 units per tile
+  const grass = (() => {
+    const n = 256, cv = document.createElement("canvas"); cv.width = cv.height = n;
+    const g = cv.getContext("2d"), img = g.createImageData(n, n), d = img.data;
+    let s = 1234567; const rnd = () => ((s = (s * 1103515245 + 12345) >>> 0) / 4294967296);
+    const v = new Float32Array(n * n);
+    for (let i = 0; i < n * n; i++) v[i] = rnd();
+    // short blades: smear the noise along a few random directions
+    const out = new Float32Array(n * n);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      let a = 0; for (let k = 0; k < 4; k++) a += v[((y + k) % n) * n + x];
+      out[y * n + x] = a / 4 * 0.75 + v[y * n + ((x + 3) % n)] * 0.25;
+    }
+    for (let i = 0; i < n * n; i++) { const c = Math.round(out[i] * 255); d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = c; d[i * 4 + 3] = 255; }
+    g.putImageData(img, 0, 0);
+    const t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(W, L); t.anisotropy = maxAniso;
+    return t;
+  })();
+
+  // the arena as reflections see it: the theme's sky and stands, with bright banks of floodlights (or the sun)
+  function buildEnv(i) {
+    const th = THEMES[i] || THEMES[0], s = new THREE.Scene();
+    const sky = new THREE.Color(th.bg), hor = new THREE.Color(th.horizon ?? th.stand ?? th.bg), low = new THREE.Color(th.stand ?? 0x101826);
+    if (!th.night) sky.lerp(new THREE.Color(0xbcdcff), 0.4);
+    const geo = new THREE.SphereGeometry(50, 32, 16), pos = geo.attributes.position, col = [];
+    const c = new THREE.Color();
+    for (let k = 0; k < pos.count; k++) {
+      const y = pos.getY(k) / 50;
+      if (y > 0.1) c.copy(hor).lerp(sky, Math.min(1, (y - 0.1) / 0.5)); else c.copy(low).lerp(hor, Math.max(0, (y + 0.3) / 0.4));
+      col.push(c.r, c.g, c.b);
+    }
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    s.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+    const lamp = new THREE.MeshBasicMaterial({ color: new THREE.Color(th.night ? 7 : 3, th.night ? 7 : 3, th.night ? 6.5 : 3) });
+    const panel = new THREE.PlaneGeometry(16, 3.5);
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * Math.PI * 2 + Math.PI / 8, m = new THREE.Mesh(panel, lamp);
+      m.position.set(Math.cos(a) * 38, th.night ? 26 : 22, Math.sin(a) * 38); m.lookAt(0, 0, 0); s.add(m);
+    }
+    if (!th.night) { const sunM = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(18, 16, 13) })); sunM.position.copy(SUN_DIR).multiplyScalar(44); s.add(sunM); }
+    const rt = pmrem.fromScene(s, 0.02);
+    s.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    return rt;
+  }
+
+  // cars: the flat look toned their studio reflections and clearcoat down (toneCar); High restores most of it
+  function paint(m, on) {
+    const u = m.userData;
+    if (u.npTone === undefined) {
+      if (!_toned.has(m)) return;
+      u.npTone = { env: m.envMapIntensity, cc: m.clearcoat || 0, full: m.envMapIntensity / (m.metalnessMap ? 0.8 : 0.45) };
+    }
+    m.envMapIntensity = on ? u.npTone.full * 0.85 : u.npTone.env;
+    if (u.npTone.cc) m.clearcoat = on ? Math.min(1, u.npTone.cc * 2) : u.npTone.cc;
+  }
+
+  // shadow casters: everything small and solid (cars, ball, wheels, goal and arena details); never the big arena
+  // shells (walls, ceiling, stands), which would put the whole pitch in shade
+  const _b = new V3();
+  function casters(on) {
+    scene.traverse(o => {
+      if (!o.isMesh || o.isInstancedMesh || o === floor) { return; }
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      if (on) { for (const m of mats) if (m && m.envMap) paint(m, true); }
+      else { for (const m of mats) if (m && m.userData && m.userData.npTone) paint(m, false); o.castShadow = false; return; }
+      if (mats.some(m => !m || m.transparent || m.isMeshBasicMaterial || m.isSpriteMaterial)) { o.castShadow = false; return; }
+      const geo = o.geometry; if (!geo) return;
+      if (!geo.boundingSphere) geo.computeBoundingSphere();
+      o.getWorldScale(_b);
+      o.castShadow = geo.boundingSphere.radius * Math.max(_b.x, _b.y, _b.z) < 6;
+    });
+  }
+
+  function apply(on) {
+    active = on;
+    sun.castShadow = on; floor.receiveShadow = on;
+    if (on && (envFor !== themeI || !envRT)) { if (envRT) envRT.dispose(); envRT = buildEnv(themeI); envFor = themeI; }
+    scene.environment = on ? envRT.texture : null;
+    floorMat.bumpMap = on ? grass : null; floorMat.bumpScale = 2.2;
+    if (floorMat.map) floorMat.map.anisotropy = on ? maxAniso : 8;
+    if (floorMat.map) floorMat.map.needsUpdate = true;
+    floorMat.needsUpdate = true;
+    lights(on);
+    casters(on);
+  }
+  // a real key light and a darker ground bounce, so shapes have form; the flat look is restored when switched off
+  function lights(on) {
+    const th = THEMES[themeI] || THEMES[0];
+    if (!on) { hemi.groundColor.copy(flatLight.hemiGround); sun.color.copy(flatLight.sunColor); return; }
+    hemi.intensity = th.night ? 1.6 : 1.75;
+    hemi.groundColor.setHex(th.night ? 0x3a4250 : 0x5a6450);
+    sun.intensity = th.night ? 2.3 : 2.8;
+    sun.color.setHex(th.night ? 0xe8f0ff : 0xfff1dc);
+  }
+
+  const baseTheme = applyTheme;
+  applyTheme = function (i) { baseTheme(i); themeI = i; if (active) apply(true); };
+
+  let checkT = 0;
+  function step(dt) {
+    const want = wanted();
+    if (want !== active) apply(want);
+    if (!active) return;
+    // new cars, balls and items appear over time: keep casters up to date once a second
+    if ((checkT -= dt) <= 0) { checkT = 1; casters(true); }
+    // the shadow area follows your car (or the ball when you watch), snapped to its texels so edges don't shimmer
+    const f = mode === "menu" ? menuFocus : (spec || match.ph === "replay" || !me.car || me.car.dead) ? ball.rp : me.car.rp;
+    const texel = SPAN * 2 / MAP;
+    focus.set(Math.round(f.x / texel) * texel, 0, Math.round(f.z / texel) * texel);
+    sun.target.position.copy(focus);
+    sun.position.copy(focus).addScaledVector(SUN_DIR, 150);
+  }
+  const prevCamera = updateCamera;
+  updateCamera = function (dt, now) { prevCamera(dt, now); try { step(dt); } catch (e) { active = false; } };
+  return { get active() { return active; }, apply, wanted };
+})();
+window.npGraphicsInfo = () => { let n = 0; scene.traverse(o => { if (o.castShadow) n++; }); return { active: NPGraphics.active, quality: settings.quality, perfLite, casters: n, shadow: sun.castShadow, env: !!scene.environment }; };

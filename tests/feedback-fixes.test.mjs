@@ -93,6 +93,19 @@ test('the release build number matches in the game, version.txt and the build he
   const build=html.match(/const BUILD = (\d+);/)[1];
   assert.equal((await read('public/version.txt')).trim(),build);
   assert.match(await read('src/worker.js'),new RegExp('"X-Nitropitch-Build", "'+build+'"'));
-  assert.match(html,/const PATCH_NOTES = \{\n  "v": "5\.62"/);
+  assert.match(html,/const PATCH_NOTES = \{\n  "v": "5\.6\d"/);
   for(const fn of ['checkVersion','noteBuild','showUpdateBar'])assert.match(html,new RegExp('function '+fn+'\\('),fn+' refresh popup kept');
+});
+
+test('better graphics run on High and on Auto while it keeps up, never on Low or Medium or in performance mode',()=>{
+  assert.match(html,/const NPGraphics = \(\(\) => \{/);
+  assert(html.indexOf('const NPGraphics')>html.indexOf('requestAnimationFrame(frame);'),'inserted after the scene and frame loop exist');
+  const src=html.slice(html.indexOf('const wanted = '),html.indexOf('\n',html.indexOf('const wanted = ')));
+  const ctx={settings:{},perfLite:false};vm.createContext(ctx);vm.runInContext(src.trim()+';globalThis.w=wanted;',ctx);
+  const want=(quality,lite)=>{ctx.settings.quality=quality;ctx.perfLite=lite;return ctx.w();};
+  assert.equal(want(2,false),true);assert.equal(want(3,false),true);
+  assert.equal(want(3,true),false,'Auto performance mode keeps the flat look');
+  assert.equal(want(1,false),false);assert.equal(want(0,false),false);
+  assert.match(html,/sun\.castShadow = on; floor\.receiveShadow = on;/);
+  assert.match(html,/scene\.environment = on \? envRT\.texture : null;/);
 });

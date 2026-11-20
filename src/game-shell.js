@@ -21,6 +21,7 @@ import menuLayout from "./menu-layout.txt";
 import {moderationScript} from "./moderation.js";
 import sideswipe from "./sideswipe.txt";
 import sideswipeMenu from "./sideswipe-menu.txt";
+import graphics from "./graphics.txt";
 // The original game is a single prebuilt HTML asset. Keep the small, reviewed
 // compatibility changes here while the asset stays unchanged. Test these anchors
 // whenever replacing public/index.html with a new game build.
@@ -99,7 +100,7 @@ const patches = [
   },
   {
     "before": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026111001;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n",
-    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026112001;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
+    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026112002;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
   },
   {
     "before": "// RLUtilities-style bounce: restitution 0.6 on the normal part, friction that trades sliding for spin\nfunction ballContact(b, n, r) {\n  if (n.y > 0.7 && b === ball && b.p.y < r + 1) ball.floorT = nowS();     // touched the floor (the 0:00 rule)\n  const vn = b.v.dot(n);\n  if (vn >= 0) return;\n",
@@ -171,7 +172,7 @@ const patches = [
   },
   {
     "before": "const PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n  \"ADMIN items (car, decal, wheels, topper, antenna, title, banner) only show for the admin and players he gifted them to. Copies anyone gave themselves are gone\",\n] };\n",
-    "after": "const PATCH_NOTES = {\n  \"v\": \"5.62\",\n  \"title\": \"Update 5.62: Your feedback, fixed\",\n  \"notes\": [\n    \"Lobby chat shows the recent conversation as soon as you open the game, instead of staying empty until you've played a match.\",\n    \"Online hits go where you hit them: on slower connections the ball no longer snaps back or flies off in another direction after your touch.\",\n    \"50/50s only mix two hits when opponents really touch the ball at the same time.\",\n    \"Harder bots: a new Legend difficulty in Exhibition and private matches, and casual and ranked bots get tougher as your level goes up.\",\n    \"New camera settings: Swivel speed (look around your car with the controller's right stick) and Transition speed (how fast ball cam switches).\",\n    \"Clearer account messages: progress earned as a guest stays in that browser and a new account starts at Level 1, so you know before you sign up.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
+    "after": "const PATCH_NOTES = {\n  \"v\": \"5.63\",\n  \"title\": \"Update 5.63: Better graphics\",\n  \"notes\": [\n    \"On High graphics (and on Auto when your device keeps up): real-time shadows under cars and the ball.\",\n    \"Cars and the ball now reflect the stadium lights, and car paint keeps its full shine and clearcoat in matches.\",\n    \"Stronger, more natural lighting in every arena, and grass with fine detail up close.\",\n    \"Low and Medium graphics look the same as before, so slower phones and Chromebooks stay smooth.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
   },
   {
     "before": "<title>Nitro Pitch</title>",
@@ -616,6 +617,10 @@ const patches = [
   {
     "before": "  camBlend = Math.max(0, camBlend - dt * 2);",
     "after": "  camBlend = Math.max(0, camBlend - dt * 2 * npCamTrans());"
+  },
+  {
+    "before": "/* NP_DRIVING_UPDATES */\n",
+    "after": "/* NP_DRIVING_UPDATES */\n/* NP_GRAPHICS */\n"
   }
 ];
 
@@ -627,5 +632,5 @@ export function applyGameFixes(html) {
     }
     html = html.slice(0,index)+after+html.slice(index+before.length);
   }
-  return html.replace("/* NP_DRIVING_UPDATES */", () => drivingUpdates).replace("/* NP_SECURE_PROGRESS */", () => secureProgress).replace("/* NP_PLAYER_FEATURES */", () => playerFeatures).replace("/* NP_GAME_POLISH */", () => gamePolish).replace("/* NP_MATCH_EXPERIENCE */", () => matchExperience).replace("/* NP_PHONE_CONTROLS */", () => phoneControls).replace("/* NP_TOUCH_INPUT */", () => touchInput).replace("/* NP_CLAN_EMBLEMS */", () => clanEmblems).replace("/* NP_MOBILE_MENUS */", () => mobileMenus).replace("/* NP_INVITE_ALERTS */", () => inviteAlerts).replace("/* NP_SEASON_UPDATE */", () => [seasonUpdate, seasonRewards, seasonTools, snowdrift, paintsUi, adminMmr, menuMusic, moderationScript, moderationUi, privateMessages, menuLayout, "/* NP2D-START (website only: the CrazyGames build removes this block) */", sideswipe, sideswipeMenu, "/* NP2D-END */"].join("\n"));
+  return html.replace("/* NP_DRIVING_UPDATES */", () => drivingUpdates).replace("/* NP_GRAPHICS */", () => graphics).replace("/* NP_SECURE_PROGRESS */", () => secureProgress).replace("/* NP_PLAYER_FEATURES */", () => playerFeatures).replace("/* NP_GAME_POLISH */", () => gamePolish).replace("/* NP_MATCH_EXPERIENCE */", () => matchExperience).replace("/* NP_PHONE_CONTROLS */", () => phoneControls).replace("/* NP_TOUCH_INPUT */", () => touchInput).replace("/* NP_CLAN_EMBLEMS */", () => clanEmblems).replace("/* NP_MOBILE_MENUS */", () => mobileMenus).replace("/* NP_INVITE_ALERTS */", () => inviteAlerts).replace("/* NP_SEASON_UPDATE */", () => [seasonUpdate, seasonRewards, seasonTools, snowdrift, paintsUi, adminMmr, menuMusic, moderationScript, moderationUi, privateMessages, menuLayout, "/* NP2D-START (website only: the CrazyGames build removes this block) */", sideswipe, sideswipeMenu, "/* NP2D-END */"].join("\n"));
 }
