@@ -6,7 +6,7 @@
 // Bloom: bright light (floodlights, boost flames, goal and neon lights, explosions) glows. The scene renders into a
 // high-range buffer; its brightest parts are blurred at five sizes and added back before the usual tone mapping.
 const NPBloom = (() => {
-  let on = false, rt = null, bright = null, levels = [], w = 0, h = 0;
+  let on = false, rt = null, bright = null, levels = [], w = 0, h = 0, broken = false;
   const size = new THREE.Vector2(), N = 5;
   const qScene = new THREE.Scene(), qCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2));
   quad.frustumCulled = false; qScene.add(quad);
@@ -15,7 +15,10 @@ const NPBloom = (() => {
   const brightMat = pass({ tDiffuse: { value: null }, uThr: { value: 1.15 }, uKnee: { value: 0.45 } },
     `uniform sampler2D tDiffuse; uniform float uThr, uKnee; varying vec2 vUv;
     void main() {
-      vec3 c = texture2D(tDiffuse, vUv).rgb; float l = max(c.r, max(c.g, c.b));
+      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      // a NaN or infinite pixel (some phones' paint highlights) would smear into a black square: drop it
+      if (!(c.r == c.r && c.g == c.g && c.b == c.b) || max(c.r, max(c.g, c.b)) > 6e4) c = vec3(0.0);
+      c = min(c, vec3(24.0)); float l = max(c.r, max(c.g, c.b));
       float s = clamp(l - uThr + uKnee, 0.0, 2.0 * uKnee); s = s * s / (4.0 * uKnee + 1e-4);
       gl_FragColor = vec4(c * max(s, l - uThr) / max(l, 1e-4), 1.0);
     }`);
@@ -33,7 +36,10 @@ const NPBloom = (() => {
     `uniform sampler2D tScene, tB0, tB1, tB2, tB3, tB4; uniform float uStrength; varying vec2 vUv;
     void main() {
       vec3 b = texture2D(tB0, vUv).rgb * 0.9 + texture2D(tB1, vUv).rgb * 0.8 + texture2D(tB2, vUv).rgb * 0.65 + texture2D(tB3, vUv).rgb * 0.5 + texture2D(tB4, vUv).rgb * 0.4;
-      gl_FragColor = vec4(texture2D(tScene, vUv).rgb + b * uStrength * 0.3, 1.0);
+      vec3 sc = texture2D(tScene, vUv).rgb;
+      if (!(sc.r == sc.r && sc.g == sc.g && sc.b == sc.b)) sc = vec3(0.0);
+      if (!(b.r == b.r && b.g == b.g && b.b == b.b)) b = vec3(0.0);
+      gl_FragColor = vec4(min(sc, vec3(6e4)) + min(b, vec3(64.0)) * uStrength * 0.3, 1.0);
       #include <tonemapping_fragment>
       #include <colorspace_fragment>
     }`, true);
@@ -46,6 +52,11 @@ const NPBloom = (() => {
     rt = target(w, h, { depthBuffer: true, samples: Math.min(4, renderer.capabilities.maxSamples || 0) });
     bright = target(w >> 1, h >> 1);
     for (let i = 0; i < N; i++) { const lw = w >> (i + 1), lh = h >> (i + 1); levels.push({ a: target(lw, lh), b: target(lw, lh), w: Math.max(1, lw), h: Math.max(1, lh) }); }
+    // devices that can't draw into these buffers showed a black screen: check once, and fall back to the normal view
+    const gl = renderer.getContext();
+    for (const t of [rt, bright, levels[0].a]) { renderer.setRenderTarget(t); if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) { broken = true; break; } }
+    renderer.setRenderTarget(null);
+    if (broken) { free(); throw new Error('bloom buffers unsupported'); }
   }
   const base = renderer.render.bind(renderer);
   function blit(mat, to) { quad.material = mat; renderer.setRenderTarget(to); base(qScene, qCam); }
@@ -64,8 +75,8 @@ const NPBloom = (() => {
   }
   // only the main view is redirected: thumbnails, reflections and shadow maps render as before
   renderer.render = function (s, c) {
-    if (!on || s !== scene || renderer.getRenderTarget() !== null) return base(s, c);
-    try { draw(s, c); } catch (e) { on = false; free(); renderer.setRenderTarget(null); base(s, c); }
+    if (!on || broken || s !== scene || renderer.getRenderTarget() !== null) return base(s, c);
+    try { draw(s, c); } catch (e) { on = false; broken = true; free(); renderer.setRenderTarget(null); base(s, c); }
   };
   return { set(v) { on = v; if (!v) free(); }, get on() { return on; } };
 })();

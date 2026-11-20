@@ -112,9 +112,20 @@ test('better graphics run on High and on Auto while it keeps up, never on Low or
 
 test('bloom only redirects the main view and arena detail is restored when graphics drop',()=>{
   const g=html.slice(html.indexOf('const NPBloom'),html.indexOf('const NPGraphics'));
-  assert.match(g,/if \(!on \|\| s !== scene \|\| renderer\.getRenderTarget\(\) !== null\) return base\(s, c\);/,'thumbnails, reflections and shadow maps render untouched');
-  assert.match(g,/catch \(e\) \{ on = false; free\(\); renderer\.setRenderTarget\(null\); base\(s, c\); \}/,'a GPU without half-float targets falls back to the normal render');
+  assert.match(g,/if \(!on \|\| broken \|\| s !== scene \|\| renderer\.getRenderTarget\(\) !== null\) return base\(s, c\);/,'thumbnails, reflections and shadow maps render untouched');
+  assert.match(g,/catch \(e\) \{ on = false; broken = true; free\(\); renderer\.setRenderTarget\(null\); base\(s, c\); \}/,'a GPU without half-float targets falls back to the normal render');
   assert.match(g,/#include <tonemapping_fragment>\s*#include <colorspace_fragment>/,'the composite keeps the game\'s tone mapping and colours');
   assert.match(g,/standMat\.map = on \? seats : plainSeats;/);assert.match(g,/crowd\.mesh\.geometry = on \? people : plainCrowd;/);
   assert.match(html,/NPBloom\.set\(on\); NPArena\.set\(on\);/);
+});
+
+test('account restore is admin only, and the glow never spreads broken pixels or draws into unsupported buffers',async()=>{
+  const prog=await read('src/progress.js');
+  for(const a of ['admin-accounts','admin-restore']){const i=prog.indexOf("b.action==='"+a+"'");assert(i>0,a);assert.match(prog.slice(i,i+200),/if\(uid!==ADMIN_UID\)throw new ApiError/);}
+  assert.match(prog,/getBookmarkForTime\(at\)/);assert.match(prog,/onNextSessionRestoreBookmark\(target\)/);
+  assert.match(html,/renderAdmin = async function/);assert.match(html,/api\.call\("admin-restore", body\)/);
+  const g=html.slice(html.indexOf('const NPBloom'),html.indexOf('const NPArena'));
+  assert.match(g,/if \(!\(c\.r == c\.r && c\.g == c\.g && c\.b == c\.b\) \|\| max\(c\.r, max\(c\.g, c\.b\)\) > 6e4\) c = vec3\(0\.0\);/);
+  assert.match(g,/checkFramebufferStatus\(gl\.FRAMEBUFFER\) !== gl\.FRAMEBUFFER_COMPLETE/);
+  assert.match(g,/if \(!on \|\| broken \|\| s !== scene/);
 });

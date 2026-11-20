@@ -94,6 +94,35 @@ export class Progress extends DurableObject{
   const {body:b,token,user}=await req.json();if(!user||!ID.test(user.uid))throw new ApiError('Invalid account',401);
   const uid=user.uid,p=await this.load(user,token),now=Date.now();const response=(extra={})=>reply({profile:cloud(p),rev:p.rev,...extra});
   if(b.action==='load'){const E=economy(p);if(E.ensureQuests())await this.save(uid,p);return response();}
+  // ---- admin: account restore. Accounts that go missing are rebuilt from the old Firestore baseline (load above), so a
+  // loss shows up as many accounts (re)created in a short time. admin-accounts lists when accounts were created, per hour;
+  // admin-restore rolls this whole store back to a moment in the last 30 days (Durable Object point-in-time recovery)
+  // and returns a bookmark that undoes the restore.
+  if(b.action==='admin-accounts'){
+   if(uid!==ADMIN_UID)throw new ApiError('Only the admin can do that',403);
+   const hours={};let total=0,oldest=null,after;
+   do{const page=await this.ctx.storage.list({prefix:'p:',limit:500,...(after?{startAfter:after}:{})});
+    for(const[key,q]of page){after=key;total++;const t=+q?.migratedAt||0;if(t&&(oldest===null||t<oldest))oldest=t;
+     if(t&&now-t<72*3600000){const h=Math.floor(t/3600000)*3600000;const e=hours[h]||(hours[h]={n:0,first:t});e.n++;if(t<e.first)e.first=t;}}
+    if(page.size<500)break;}while(true);
+   let oldestMatch=null,after2;
+   do{const page=await this.ctx.storage.list({prefix:'match:',limit:1000,...(after2?{startAfter:after2}:{})});
+    for(const[key,r]of page){after2=key;const t=+r?.at||0;if(t&&(oldestMatch===null||t<oldestMatch))oldestMatch=t;}
+    if(page.size<1000)break;}while(true);
+   let bookmark=null;try{bookmark=await this.ctx.storage.getCurrentBookmark();}catch{}
+   return reply({total,oldest,oldestMatch,hours:Object.entries(hours).map(([h,e])=>({hour:+h,n:e.n,first:e.first})).sort((x,y)=>x.hour-y.hour),pitr:!!bookmark});
+  }
+  if(b.action==='admin-restore'){
+   if(uid!==ADMIN_UID)throw new ApiError('Only the admin can do that',403);
+   const at=Number(b.at);let target=typeof b.bookmark==='string'&&b.bookmark.length<400?b.bookmark:null;
+   if(!target&&!(at>now-30*86400000&&at<now))throw new ApiError('Pick a time in the last 30 days');
+   let undo;
+   try{undo=await this.ctx.storage.getCurrentBookmark();if(!target)target=await this.ctx.storage.getBookmarkForTime(at);await this.ctx.storage.onNextSessionRestoreBookmark(target);}
+   catch(e){throw new ApiError('Restore is not available: '+String(e?.message||e).slice(0,160),503);}
+   // restart the store so the restore takes effect (after this reply is sent)
+   setTimeout(()=>{try{this.ctx.abort('account restore');}catch{}},250);
+   return reply({ok:true,restoredTo:target,undo});
+  }
   if(b.action==='save'){
    const d=b.profile||{};for(const[field,k]of Object.entries(cosmetics))if(Number.isInteger(d[field])&&permission(p,k,d[field],uid))p[field]=d[field];
    if(Number.isInteger(d.paint))p.paint=clamp(d.paint,-1,0xffffff);

@@ -1,0 +1,51 @@
+// Admin: account restore, at the top of the admin panel's Players tab. "Check accounts" shows how many accounts the
+// progress server holds and, per hour over the last 3 days, how many were (re)created; a burst of rebuilt accounts
+// marks a loss. "Restore to before this" rolls the whole progress store back to just before that hour's first
+// rebuild (Cloudflare point-in-time recovery, up to 30 days back). Each restore can be undone.
+(() => {
+  const api = window.NPProgressAPI, UNDO = "np-restore-undo";
+  const when = t => new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  async function restore(body, what) {
+    if (!confirm(what + "\n\nEvery account goes back to how it was then (progress made since then is undone). Players see it after they reload the game. You can undo this.")) return;
+    try {
+      const r = await api.call("admin-restore", body);
+      try { localStorage.setItem(UNDO, JSON.stringify({ b: r.undo, at: Date.now() })); } catch {}
+      adMsg("Restore started. Give it a few seconds, then press Check accounts. Players reload the game to see their restored progress.");
+      toast("Accounts restored");
+      setTimeout(() => { if (adTab === "players") renderAdmin(); }, 4000);
+    } catch (e) { adMsg((e && e.message) || "Couldn't restore"); }
+  }
+  function box() {
+    const wrap = h("div", "np-restore"); wrap.style.cssText = "border:1px solid #3b4a66;border-radius:10px;padding:10px 12px;margin:0 0 12px";
+    const out = h("div", ""), title = h("b", "", "Account restore");
+    const check = adBtn("Check accounts", async () => {
+      out.textContent = "Checking…";
+      try {
+        const r = await api.call("admin-accounts", {});
+        out.innerHTML = "";
+        out.append(h("div", "", r.total + " accounts on the server" + (r.oldest ? " · oldest created " + when(r.oldest) : "") + (r.oldestMatch ? " · oldest saved match " + when(r.oldestMatch) : "") + (r.pitr ? "" : " · restore not available on this server")));
+        out.append(h("div", "", "Accounts created or rebuilt per hour (last 3 days). A big burst is when accounts were lost:"));
+        const t = document.createElement("table");
+        for (const e of r.hours.slice().reverse()) {
+          const tr = document.createElement("tr"), a = document.createElement("td"), n = document.createElement("td"), b = document.createElement("td");
+          a.textContent = when(e.hour); n.textContent = e.n + (e.n === 1 ? " account" : " accounts");
+          if (r.pitr) b.append(adBtn("Restore to before this", () => restore({ at: e.first - 60000 }, "Restore every account to how it was at " + when(e.first - 60000) + "?")));
+          tr.append(a, n, b); t.append(tr);
+        }
+        out.append(t);
+      } catch (e) { out.textContent = (e && e.message) || "Couldn't check the accounts"; }
+    }, true);
+    const at = document.createElement("input"); at.type = "datetime-local"; at.className = "t";
+    const manual = adBtn("Restore to this time", () => { const t = new Date(at.value).getTime(); if (!t) { adMsg("Pick a date and time first."); return; } restore({ at: t }, "Restore every account to how it was at " + when(t) + "?"); });
+    const row = h("div", ""); row.append(check, at, manual);
+    let undo = null; try { undo = JSON.parse(localStorage.getItem(UNDO) || "null"); } catch {}
+    if (undo && undo.b && Date.now() - undo.at < 7 * 86400000) row.append(adBtn("Undo last restore", () => restore({ bookmark: undo.b }, "Undo the restore made " + when(undo.at) + "?")));
+    wrap.append(title, row, out);
+    return wrap;
+  }
+  const base = renderAdmin;
+  renderAdmin = async function (...a) {
+    await base.apply(this, a);
+    try { if (adTab === "players" && api && window.npAccounts && npAccounts.isAdmin && npAccounts.isAdmin()) $("adBody").prepend(box()); } catch {}
+  };
+})();
