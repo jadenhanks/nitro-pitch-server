@@ -1,0 +1,45 @@
+// A visible warning when a signed-in player's progress isn't reaching their account (it used to fail silently, and
+// players kept playing on a save only their browser had). Checks the account server on start and every 45 s, and
+// whenever a save fails; the banner says what to do and has a Retry button.
+(() => {
+  const api = window.NPProgressAPI, A = window.npAccounts;
+  if (!api || !A) return;
+  let failing = false, checking = false, since = 0;
+  const bar = document.createElement("div");
+  bar.id = "npSaveWarn"; bar.hidden = true; bar.setAttribute("role", "alert");
+  bar.style.cssText = "position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:80;max-width:min(560px,calc(100% - 24px));padding:10px 14px;border-radius:10px;background:#3a1010f2;border:1px solid #ff7a7a;color:#fff;font:14px/1.35 system-ui,sans-serif;box-shadow:0 6px 24px #0008;display:flex;gap:10px;align-items:center";
+  const text = document.createElement("div");
+  text.innerHTML = "<b>Your progress isn't saving to your account.</b><br>Keep the game open, check your internet (school or work Wi-Fi can block it), then tap Retry. If this keeps showing, log out and back in, or send feedback.";
+  const retry = document.createElement("button"); retry.type = "button"; retry.className = "sbtn sm pri"; retry.innerHTML = "<span>Retry</span>";
+  retry.onclick = () => check(true);
+  bar.append(text, retry); document.body.append(bar);
+  function show(on) { failing = on; bar.hidden = !on; }
+  // network, server and sign-in failures count; game answers (already saved, not finished, banned...) don't
+  const serious = e => !e || !e.status || e.status >= 500 || e.status === 401;
+  async function check(byHand) {
+    let u = null; try { u = A.user(); } catch {}
+    if (!u) { show(false); return; }
+    if (checking) return; checking = true;
+    if (byHand) text.querySelector("b").textContent = "Checking…";
+    try {
+      const r = await api.call("load");
+      try { if (typeof NPSecure !== "undefined" && r && r.profile) NPSecure.apply(r.profile); } catch {}
+      if (failing) toast("Connected: your progress is saving again");
+      show(false); since = 0;
+    } catch (e) {
+      if (serious(e)) { if (!since) since = Date.now(); show(true); }
+    } finally {
+      checking = false;
+      text.querySelector("b").textContent = "Your progress isn't saving to your account.";
+    }
+  }
+  // saves made by the game also tell us when it starts failing (or works again)
+  const call = api.call;
+  api.call = async function (...a) {
+    try { const r = await call.apply(this, a); if (failing) show(false); return r; }
+    catch (e) { if (serious(e)) { try { if (A.user()) show(true); } catch {} } throw e; }
+  };
+  setTimeout(() => check(false), 8000);
+  setInterval(() => { if (!document.hidden) check(false); }, 45000);
+  window.addEventListener("online", () => check(false));
+})();

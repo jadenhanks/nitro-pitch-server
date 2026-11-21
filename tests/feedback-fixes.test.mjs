@@ -140,3 +140,10 @@ test('Margay is an ADMIN design car right after Shell Shock in the game and on t
   assert.match(html,/if \(CARS\[bi\] && CARS\[bi\]\.cat\) return buildCat\(o \|\| \{\}\);/);
   assert.match(html,/const d0 = car\.dispose; car\.dispose = function \(\) \{ cat\.dispose\(\);/,'the skeleton is freed with the car');
 });
+
+test('a signed-in player sees a warning with Retry when progress is not reaching their account',()=>{
+  assert.match(html,/id = "npSaveWarn"/);
+  assert.match(html,/Your progress isn't saving to your account\./);
+  assert.match(html,/const serious = e => !e \|\| !e\.status \|\| e\.status >= 500 \|\| e\.status === 401;/,'game answers like "already saved" do not trigger it');
+  assert.match(html,/if \(!u\) \{ show\(false\); return; \}/,'guests never see it');
+});
