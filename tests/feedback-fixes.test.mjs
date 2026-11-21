@@ -160,3 +160,13 @@ test('secondary colour paints the trim of every car, is saved, and travels to ot
   assert.match(prog,/if\(Number\.isInteger\(d\.paint2\)\)p\.paint2=clamp\(d\.paint2,-1,0xffffff\);/);
   assert.match(prog,/if\(Number\.isInteger\(raw\.paint2\)\)p\.paint2=clamp\(raw\.paint2,-1,0xffffff\);/);
 });
+
+test('admin sees every account that has signed in, and clan deletes report errors',async()=>{
+  const prog=await read('src/progress.js'),i=prog.indexOf("b.action==='admin-players'");
+  assert(i>0);assert.match(prog.slice(i,i+120),/if\(uid!==ADMIN_UID\)throw new ApiError/);
+  assert.match(prog,/if\(!\(p\.seen>now-3600000\)\)\{p\.seen=now;/);
+  assert.match(html,/const rows = \(await npAllPlayers\(A\)\)\.sort/);
+  assert.match(html,/adBtn\("Profile", \(\) => statsForUid\(r\.uid, r\.name\)\)/);
+  assert.match(html,/catch \(e\) \{ adMsg\("Couldn't delete the clan: "/);
+  assert.match(html,/code\.code\.length >= 5 && \(await/);
+});

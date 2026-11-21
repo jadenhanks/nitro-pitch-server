@@ -94,6 +94,8 @@ export class Progress extends DurableObject{
   }
   const {body:b,token,user}=await req.json();if(!user||!ID.test(user.uid))throw new ApiError('Invalid account',401);
   const uid=user.uid,p=await this.load(user,token),now=Date.now();const response=(extra={})=>reply({profile:cloud(p),rev:p.rev,...extra});
+  // when the account last played (kept to the hour, for the admin's player list)
+  if(!(p.seen>now-3600000)){p.seen=now;await this.ctx.storage.put('p:'+uid,p);}
   if(b.action==='load'){const E=economy(p);if(E.ensureQuests())await this.save(uid,p);return response();}
   // ---- admin: account restore. Accounts that go missing are rebuilt from the old Firestore baseline (load above), so a
   // loss shows up as many accounts (re)created in a short time. admin-accounts lists when accounts were created, per hour;
@@ -116,6 +118,17 @@ export class Progress extends DurableObject{
   // admin-lookup: the stored records of some accounts (to find lost progress at an earlier restore point);
   // admin-put-back: write saved records back for accounts that were rebuilt after a loss (only rebuilt accounts, so a
   // newer real profile is never overwritten); the records come from admin-lookup at an earlier point in time
+  // admin-players: every account that has ever signed in (the admin's Players tab)
+  if(b.action==='admin-players'){
+   if(uid!==ADMIN_UID)throw new ApiError('Only the admin can do that',403);
+   const rows=[];let after;
+   do{const page=await this.ctx.storage.list({prefix:'p:',limit:500,...(after?{startAfter:after}:{})});
+    for(const[key,q]of page){after=key;if(!q)continue;
+     const mmr=Math.round(Math.max(q.cm||0,...(q.rk||[]).map(r=>r?.[0]||0)));
+     rows.push([key.slice(2),String(q.name||q.username||'').slice(0,30),levelInfo(q.xp||0).lv,q.wins|0,q.goals|0,mmr,q.games|0,+q.seen||0,+q.migratedAt||0,String(q.username||'').slice(0,30)]);}
+    if(page.size<500)break;}while(true);
+   return reply({players:rows});
+  }
   if(b.action==='admin-lookup'){
    if(uid!==ADMIN_UID)throw new ApiError('Only the admin can do that',403);
    const ids=(Array.isArray(b.uids)?b.uids:[]).filter(x=>ID.test(String(x))).slice(0,200);

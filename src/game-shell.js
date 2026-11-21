@@ -103,7 +103,7 @@ const patches = [
   },
   {
     "before": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026111001;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n",
-    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026112007;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
+    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026112008;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
   },
   {
     "before": "// RLUtilities-style bounce: restitution 0.6 on the normal part, friction that trades sliding for spin\nfunction ballContact(b, n, r) {\n  if (n.y > 0.7 && b === ball && b.p.y < r + 1) ball.floorT = nowS();     // touched the floor (the 0:00 rule)\n  const vn = b.v.dot(n);\n  if (vn >= 0) return;\n",
@@ -175,7 +175,7 @@ const patches = [
   },
   {
     "before": "const PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n  \"ADMIN items (car, decal, wheels, topper, antenna, title, banner) only show for the admin and players he gifted them to. Copies anyone gave themselves are gone\",\n] };\n",
-    "after": "const PATCH_NOTES = {\n  \"v\": \"5.68\",\n  \"title\": \"Update 5.68: Secondary colours\",\n  \"notes\": [\n    \"Every car now has a secondary colour: pick it in Garage > Paint, under the main colour. It paints the trim (bumpers, skirts, spoiler and mirrors).\",\n    \"Choose any colour, or Car's own for the original trim. Other players see it online.\",\n    \"Painted drop cars keep their painted trim, and the character designs have no trim to paint.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
+    "after": "const PATCH_NOTES = {\n  \"v\": \"5.69\",\n  \"title\": \"Update 5.69: Admin tools\",\n  \"notes\": [\n    \"Admin: the Players list now shows everyone who has ever signed in, most recently played first, with a Profile button.\",\n    \"Admin: deleting a clan now says why if it can't, and removes the clan's invite code too.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
   },
   {
     "before": "<title>Nitro Pitch</title>",
@@ -692,6 +692,34 @@ const patches = [
   {
     "before": "wheel: gPrev.wheel, paint: gPrev.paint, finish: gPrev.finish,",
     "after": "wheel: gPrev.wheel, paint: gPrev.paint, paint2: gPrev.paint2, finish: gPrev.finish,"
+  },
+  {
+    "before": "async function renderAdmin() {",
+    "after": "// every account that has ever signed in: the progress server's accounts, plus old leaderboard rows it doesn't have\nasync function npAllPlayers(A) {\n  let board = []; try { board = await A.admin.board(); } catch {}\n  let server = []; try { server = (await window.NPProgressAPI.call(\"admin-players\")).players || []; } catch (e) { if (!board.length) throw e; }\n  const byUid = new Map(board.map(r => [r.uid, r]));\n  const out = server.map(([uid, name, level, wins, goals, mmr, games, seen, created, username]) => {\n    const b = byUid.get(uid); byUid.delete(uid);\n    return { uid, name: name || (b && b.name) || username, level, wins, goals, mmr, games, seen, created, updatedAt: seen ? { toDate: () => new Date(seen) } : b && b.updatedAt };\n  });\n  return out.concat([...byUid.values()]);\n}\nasync function renderAdmin() {"
+  },
+  {
+    "before": "      const rows = (await A.admin.board()).sort((a, b) => (b.wins || 0) - (a.wins || 0));",
+    "after": "      const rows = (await npAllPlayers(A)).sort((a, b) => (b.seen || 0) - (a.seen || 0) || (b.wins || 0) - (a.wins || 0));"
+  },
+  {
+    "before": "<th>MMR</th><th>Updated</th><th></th></tr>\";",
+    "after": "<th>MMR</th><th>Last played</th><th></th></tr>\";"
+  },
+  {
+    "before": "x.append(adBtn(\"Give XP\", () => { gtr.hidden = !gtr.hidden; }, true), \" \",",
+    "after": "x.append(adBtn(\"Profile\", () => statsForUid(r.uid, r.name)), \" \", adBtn(\"Give XP\", () => { gtr.hidden = !gtr.hidden; }, true), \" \","
+  },
+  {
+    "before": "adMsg(rows.length + \" players on the leaderboard. Red rows look fake.\");",
+    "after": "adMsg(rows.length + \" players: everyone who has signed in, most recently played first. Red rows look fake.\");"
+  },
+  {
+    "before": "adBtn(\"Delete\", async () => { if (!confirm(\"Delete [\" + c.tag + \"] \" + c.name + \" and remove all its members?\")) return; await A.clans.admin.remove(c); toast(\"Clan deleted\"); renderAdmin(); })",
+    "after": "adBtn(\"Delete clan\", async () => { if (!confirm(\"Delete [\" + c.tag + \"] \" + c.name + \" and remove all its members?\")) return; try { adMsg(\"Deleting…\"); await A.clans.admin.remove(c); toast(\"Clan deleted\"); renderAdmin(); } catch (e) { adMsg(\"Couldn't delete the clan: \" + ((e && e.message) || \"unknown error\")); } })"
+  },
+  {
+    "before": "if (code && code.code && code.code.length === 5 && (await",
+    "after": "if (code && code.code && code.code.length >= 5 && (await"
   }
 ];
 
