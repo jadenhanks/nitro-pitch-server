@@ -21,6 +21,7 @@ export function cleanProfile(raw={}){
  p.name=typeof raw.name==='string'?raw.name.slice(0,14):'';p.settings=typeof raw.settings==='string'?raw.settings.slice(0,20000):'';
  for(const[field,kind]of Object.entries(cosmetics))p[field]=catalog[kind][raw[field]]?raw[field]:0;
  if(Number.isInteger(raw.paint))p.paint=clamp(raw.paint,-1,0xffffff);
+ if(Number.isInteger(raw.paint2))p.paint2=clamp(raw.paint2,-1,0xffffff);
  p.fr=Array.isArray(raw.fr)?raw.fr.filter(x=>typeof x==='string').slice(0,50):[];
  p.ev=cleanEv(raw.ev);
  if(Array.isArray(raw.pp)){p.pp=raw.pp;migratePainted(p,catalog);}
@@ -147,6 +148,7 @@ export class Progress extends DurableObject{
   if(b.action==='save'){
    const d=b.profile||{};for(const[field,k]of Object.entries(cosmetics))if(Number.isInteger(d[field])&&permission(p,k,d[field],uid))p[field]=d[field];
    if(Number.isInteger(d.paint))p.paint=clamp(d.paint,-1,0xffffff);
+   if(Number.isInteger(d.paint2))p.paint2=clamp(d.paint2,-1,0xffffff);
    if(typeof d.name==='string'&&!p.nameLock){const nm=d.name.replace(/[^\p{L}\p{N} _.\-]/gu,'').slice(0,14);if(!badName(nm))p.name=nm;}
    if(typeof d.settings==='string'&&d.settings.length<=20000){try{const v=JSON.parse(d.settings);if(v&&typeof v==='object'&&!Array.isArray(v))p.settings=d.settings;}catch{}}
    await this.save(uid,p);return response();

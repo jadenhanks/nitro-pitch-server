@@ -147,3 +147,16 @@ test('a signed-in player sees a warning with Retry when progress is not reaching
   assert.match(html,/const serious = e => !e \|\| !e\.status \|\| e\.status >= 500 \|\| e\.status === 401;/,'game answers like "already saved" do not trigger it');
   assert.match(html,/if \(!u\) \{ show\(false\); return; \}/,'guests never see it');
 });
+
+test('secondary colour paints the trim of every car, is saved, and travels to other players',async()=>{
+  assert.match(html,/if \(p2 >= 0 && typeof NPPaints !== "undefined" && NPPaints\.trim && !\(c && \(c\.painted \|\| c\.tung \|\| c\.turtle \|\| c\.cat\)\)\) NPPaints\.trim\(m\.g, p2\);/);
+  assert.match(html,/look \? okAnt\(look\.antenna\) : 0, look \? okPaint\(look\.paint2\) : -1\]; \}/,'online car data carries it');
+  assert.match(html,/r\.paint2 = okPaint\(pr\.c\[21\]\);/);assert.match(html,/pa: \[me\.paint, me\.finish, me\.paint2\]/);
+  assert.match(html,/v\.paint2 !== okPaint\(c\.paint2\)/,'changing it rebuilds the car');
+  assert.match(html,/paint: gPrev\.paint, paint2: gPrev\.paint2,/,'the garage preview shows it');
+  assert.match(html,/if \(fin\(s\.paint2\)\) o\.paint2 = okPaint\(s\.paint2\);/);
+  assert.match(html,/return \{ PAINTS, BASE, trim: applyTrim \};/);
+  const prog=await read('src/progress.js');
+  assert.match(prog,/if\(Number\.isInteger\(d\.paint2\)\)p\.paint2=clamp\(d\.paint2,-1,0xffffff\);/);
+  assert.match(prog,/if\(Number\.isInteger\(raw\.paint2\)\)p\.paint2=clamp\(raw\.paint2,-1,0xffffff\);/);
+});

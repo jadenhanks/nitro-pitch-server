@@ -103,7 +103,7 @@ const patches = [
   },
   {
     "before": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026111001;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n",
-    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026112006;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
+    "after": "const $ = id => document.getElementById(id);\n// release number: goes up with every update (the website also serves it in version.txt)\nconst BUILD = 2026112007;\n// patch notes: a pop-up on the main menu, shown once per player per version (v), after each update (see showPatchNotes)\nconst PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n"
   },
   {
     "before": "// RLUtilities-style bounce: restitution 0.6 on the normal part, friction that trades sliding for spin\nfunction ballContact(b, n, r) {\n  if (n.y > 0.7 && b === ball && b.p.y < r + 1) ball.floorT = nowS();     // touched the floor (the 0:00 rule)\n  const vn = b.v.dot(n);\n  if (vn >= 0) return;\n",
@@ -175,7 +175,7 @@ const patches = [
   },
   {
     "before": "const PATCH_NOTES = { v: \"5.4\", title: \"Update 5.4: ADMIN items are the admin's\", notes: [\n  \"ADMIN items (car, decal, wheels, topper, antenna, title, banner) only show for the admin and players he gifted them to. Copies anyone gave themselves are gone\",\n] };\n",
-    "after": "const PATCH_NOTES = {\n  \"v\": \"5.67\",\n  \"title\": \"Update 5.67: Know when your progress is saving\",\n  \"notes\": [\n    \"If your level and items aren't reaching your account (no internet, a blocked network, or a sign-in problem), a red message now says so, with a Retry button.\",\n    \"If you see it: keep the game open, check your internet (school or work Wi-Fi can block it), then tap Retry. Still there? Log out and back in, or send feedback.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
+    "after": "const PATCH_NOTES = {\n  \"v\": \"5.68\",\n  \"title\": \"Update 5.68: Secondary colours\",\n  \"notes\": [\n    \"Every car now has a secondary colour: pick it in Garage > Paint, under the main colour. It paints the trim (bumpers, skirts, spoiler and mirrors).\",\n    \"Choose any colour, or Car's own for the original trim. Other players see it online.\",\n    \"Painted drop cars keep their painted trim, and the character designs have no trim to paint.\",\n    \"Refresh from the menu when prompted to load this update.\"\n  ]\n};\n"
   },
   {
     "before": "<title>Nitro Pitch</title>",
@@ -624,6 +624,74 @@ const patches = [
   {
     "before": "/* NP_DRIVING_UPDATES */\n",
     "after": "/* NP_DRIVING_UPDATES */\n/* NP_GRAPHICS */\n"
+  },
+  {
+    "before": "  if (fin(s.paint)) o.paint = okPaint(s.paint);",
+    "after": "  if (fin(s.paint)) o.paint = okPaint(s.paint);\n  if (fin(s.paint2)) o.paint2 = okPaint(s.paint2);"
+  },
+  {
+    "before": "me.paint = okPaint(profile.paint); me.finish = okFinish(profile.finish);",
+    "after": "me.paint = okPaint(profile.paint); me.paint2 = okPaint(profile.paint2); me.finish = okFinish(profile.finish);"
+  },
+  {
+    "before": "look ? okAnt(look.antenna) : 0]; }",
+    "after": "look ? okAnt(look.antenna) : 0, look ? okPaint(look.paint2) : -1]; }"
+  },
+  {
+    "before": "r.paint = okPaint(pr.c[17]);",
+    "after": "r.paint = okPaint(pr.c[17]); r.paint2 = okPaint(pr.c[21]);"
+  },
+  {
+    "before": "paint: r.paint",
+    "after": "paint: r.paint, paint2: r.paint2"
+  },
+  {
+    "before": "v.paint !== okPaint(c.paint) ||",
+    "after": "v.paint !== okPaint(c.paint) || v.paint2 !== okPaint(c.paint2) ||"
+  },
+  {
+    "before": "{ decal: c.decal | 0, wheel: c.wheel | 0, paint: c.paint, finish: c.finish,",
+    "after": "{ decal: c.decal | 0, wheel: c.wheel | 0, paint: c.paint, paint2: c.paint2, finish: c.finish,"
+  },
+  {
+    "before": "paint: okPaint(lk.paint), finish: okFinish(lk.finish),",
+    "after": "paint: okPaint(lk.paint), paint2: okPaint(lk.paint2), finish: okFinish(lk.finish),"
+  },
+  {
+    "before": "  toneCar(m.g);\n  let att = null;",
+    "after": "  toneCar(m.g);\n  // secondary colour: repaint the trim (not on painted cars, whose trim is their paint, or on the character designs)\n  { const p2 = okPaint(lk.paint2), c = CARS[bodyI]; if (p2 >= 0 && typeof NPPaints !== \"undefined\" && NPPaints.trim && !(c && (c.painted || c.tung || c.turtle || c.cat))) NPPaints.trim(m.g, p2); }\n  let att = null;"
+  },
+  {
+    "before": "paint: me.paint, finish: me.finish, topper: me.topper, antenna: me.antenna, ti: myTi()",
+    "after": "paint: me.paint, paint2: me.paint2, finish: me.finish, topper: me.topper, antenna: me.antenna, ti: myTi()"
+  },
+  {
+    "before": "paint: p.paint, finish: p.finish, topper: p.topper, antenna: p.antenna, ti: p.ti",
+    "after": "paint: p.paint, paint2: p.paint2, finish: p.finish, topper: p.topper, antenna: p.antenna, ti: p.ti"
+  },
+  {
+    "before": "paint: Array.isArray(pr.pa) ? okPaint(pr.pa[0]) : -1,",
+    "after": "paint: Array.isArray(pr.pa) ? okPaint(pr.pa[0]) : -1, paint2: Array.isArray(pr.pa) ? okPaint(pr.pa[2]) : -1,"
+  },
+  {
+    "before": "pa: [me.paint, me.finish]",
+    "after": "pa: [me.paint, me.finish, me.paint2]"
+  },
+  {
+    "before": "okPaint(e.paint), okFinish(e.finish), okTop(e.topper), okAnt(e.antenna)].join(\",\");",
+    "after": "okPaint(e.paint), okPaint(e.paint2), okFinish(e.finish), okTop(e.topper), okAnt(e.antenna)].join(\",\");"
+  },
+  {
+    "before": "s.car = buildCarMesh(e.team, e.body, e.trail, null, { decal: e.decal, wheel: e.wheel, paint: e.paint, finish: e.finish,",
+    "after": "s.car = buildCarMesh(e.team, e.body, e.trail, null, { decal: e.decal, wheel: e.wheel, paint: e.paint, paint2: e.paint2, finish: e.finish,"
+  },
+  {
+    "before": "  gPrev.paint = okPaint(profile.paint); gPrev.finish = okFinish(profile.finish);",
+    "after": "  gPrev.paint = okPaint(profile.paint); gPrev.paint2 = okPaint(profile.paint2); gPrev.finish = okFinish(profile.finish);"
+  },
+  {
+    "before": "wheel: gPrev.wheel, paint: gPrev.paint, finish: gPrev.finish,",
+    "after": "wheel: gPrev.wheel, paint: gPrev.paint, paint2: gPrev.paint2, finish: gPrev.finish,"
   }
 ];
 

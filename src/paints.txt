@@ -387,5 +387,38 @@ const NPPaints = (() => {
   // ---- the drops tab no longer counts how many items are left to find
   const rd = renderDrops;
   renderDrops = function (...a) { rd(...a); for (const n of $("npDrops").querySelectorAll(".note")) if (/^(Items still to find in drops|You own every drop item)/.test(n.textContent)) n.remove(); };
-  return { PAINTS, BASE };
+  // ---- secondary colour: a second row in the garage's Paint tab paints the trim of any car (src/game-shell.js applies it)
+  let paint2SaveT = 0;
+  function setPaint2(c, commit) {
+    profile.paint2 = okPaint(c); gPrev.paint2 = profile.paint2; me.paint2 = profile.paint2;
+    renderPaintBar();
+    clearTimeout(paint2SaveT);
+    paint2SaveT = setTimeout(() => { saveProfile(); lobbyPresence(); }, commit ? 0 : 600);
+  }
+  const rpb = renderPaintBar;
+  renderPaintBar = function (...a) {
+    rpb.apply(this, a);
+    const box = $("gPaint"); if (!box || box.hidden) return;
+    let row = box.querySelector(".gp2");
+    if (!row) {
+      row = h("div", "gp2"); row.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.12)";
+      const title = h("b", "", "Secondary colour"); title.style.cssText = "width:100%;font-size:12px;letter-spacing:.06em;text-transform:uppercase;opacity:.8";
+      const def = h("button", "gp-team gp2-def", "Car's own"); def.type = "button"; def.title = "The trim colours the car comes with"; def.onclick = () => setPaint2(-1, true);
+      const pick = document.createElement("input"); pick.type = "color"; pick.id = "gPaint2In"; pick.title = "Pick any secondary colour"; pick.setAttribute("aria-label", "Pick any secondary colour");
+      pick.oninput = () => setPaint2(parseInt(pick.value.slice(1), 16), false);
+      pick.onchange = () => setPaint2(parseInt(pick.value.slice(1), 16), true);
+      const lab = h("label", "gp-any"); lab.append(pick, h("span", "", "Any colour"));
+      const sw = h("div", "gp-sw");
+      for (const c of PAINT_SWATCHES) { const b = h("button", "gp-c gp2-c"); b.type = "button"; b.style.background = hex(c); b.dataset.c = c; b.setAttribute("aria-label", "Secondary " + hex(c)); b.onclick = () => setPaint2(c, true); sw.append(b); }
+      row.append(title, def, lab, sw); box.append(row);
+    }
+    const cur = okPaint(profile.paint2), c = CARS[profile.body];
+    row.querySelector(".gp2-def").setAttribute("aria-pressed", String(cur < 0));
+    for (const b of row.querySelectorAll(".gp2-c")) b.setAttribute("aria-pressed", String(+b.dataset.c === cur));
+    const pin = $("gPaint2In"); if (document.activeElement !== pin) pin.value = hex(cur >= 0 ? cur : 0x15161a);
+    // painted cars keep their painted trim, and the character designs have no trim
+    const off = !!(c && (c.painted || c.tung || c.turtle || c.cat));
+    row.style.opacity = off ? 0.45 : 1; row.title = off ? "This car's trim can't be repainted" : "";
+  };
+  return { PAINTS, BASE, trim: applyTrim };
 })();
